@@ -1,33 +1,33 @@
-# What is angr, and how do I use it?
+# angrとは何か、どのように使うのか
 
-angr is a multi-architecture binary analysis toolkit, with the capability to perform dynamic symbolic execution \(like Mayhem, KLEE, etc.\) and various static analyses on binaries. If you'd like to learn how to use it, you're in the right place!
+angrはマルチアーキテクチャ対応のバイナリ解析ツールキットであり、動的シンボリック実行（Mayhem、KLEEなど）とさまざまな静的解析を実行する機能を備えています。使い方を知りたいなら、ぜひ参考にしてください！
 
-We've tried to make using angr as pain-free as possible - our goal is to create a user-friendly binary analysis suite, allowing a user to simply start up iPython and easily perform intensive binary analyses with a couple of commands. That being said, binary analysis is complex, which makes angr complex. This documentation is an attempt to help out with that, providing narrative explanation and exploration of angr and its design.
+私たちは、angrをできるだけ簡単に使用できるよう努めてきました。私達の目標は、ユーザーフレンドリーなバイナリ解析スイートを構築することです。これにより、ユーザーはIPythonを起動するだけで、いくつかのコマンドでバイナリ解析を簡単に行えるようになります。そうは言っても、バイナリ解析は複雑であり、それがangrを複雑にしています。このドキュメントは、angrとその設計について物語的に説明し、探求していくことで、それを支援する試みです。
 
-Several challenges must be overcome to programmatically analyze a binary. They are, roughly:
+プログラムでバイナリを解析するためには、いくつかの課題を克服する必要があります。それらは、大まかには次のとおりです:
 
-* Loading a binary into the analysis program.
-* Translating a binary into an intermediate representation \(IR\).
-* Performing the actual analysis. This could be:
-  * A partial or full-program static analysis \(i.e., dependency analysis, program slicing\).
-  * A symbolic exploration of the program's state space \(i.e., "Can we execute it until we find an overflow?"\).
-  * Some combination of the above \(i.e., "Let's execute only program slices that lead to a memory write, to find an overflow."\)
+* 解析プログラムへバイナリをロードする。
+* バイナリを中間表現（IR）に変換する。
+* バイナリを実際に解析する。これは次のようになります:
+  * プログラムの一部または全体の静的解析（すなわち、依存関係の解析、プログラムスライシング）
+  * プログラムの状態空間のシンボリック探索（すなわち、「オーバーフローが見つかるまで実行できるか？」）
+  * 上記の組み合わせ（すなわち、「オーバーフローを見つけるために、メモリ書き込みにつながるプログラムスライスのみを実行しよう。」）
 
-angr has components that meet all of these challenges. This book will explain how each one works, and how they can all be used to accomplish your evil goals.
+angrには、これらの課題をすべてクリアするコンポーネントがあります。本書では、それぞれがどのように機能し、どのようにそれらを使って邪悪な目標を達成できるかを説明します。
 
-## Get Started
+## はじめに
 
-Installation instructions can be found [here](INSTALL.md).
+インストール方法は[こちら](INSTALL.md)をご覧ください。
 
-To dive right into angr's capabilities, start with the [top level methods](./docs/toplevel.md) and read forward from there.
+angrの機能を理解するには、[トップレベルのメソッド](./docs/toplevel.md)から読んでください。
 
-A searchable HTML version of this documentation is hosted at [docs.angr.io](https://docs.angr.io/), and an HTML API reference can be found at [angr.io/api-doc](https://angr.io/api-doc/).
+このドキュメントのHTMLバージョンは[docs.angr.io](https://docs.angr.io/)にあり、HTML APIリファレンスは[angr.io/api-doc](https://angr.io/api-doc/)にあります。
 
-If you enjoy playing CTFs and would like to learn angr in a similar fashion, [angr_ctf](https://github.com/jakespringer/angr_ctf) will be a fun way for you to get familiar with much of the symbolic execution capability of angr. [The angr_ctf repo](https://github.com/jakespringer/angr_ctf) is maintained by [@jakespringer](https://github.com/jakespringer).
+もしCTFを楽しんでいて、同じようにangrを学びたいならば、[angr_ctf](https://github.com/jakespringer/angr_ctf)はangrのシンボリック実行機能に慣れるための楽しい方法でしょう。[angr_ctfリポジトリ](https://github.com/jakespringer/angr_ctf)は[@jakespringer](https://github.com/jakespringer)によってメンテナンスされています。
 
-## Citing angr
+## angrの引用
 
-If you use angr in an academic work, please cite the papers for which it was developed:
+もし学術論文でangrを使用する場合は、angrが開発された論文を引用してください：
 
 ```bibtex
 @article{shoshitaishvili2016state,
@@ -52,13 +52,13 @@ If you use angr in an academic work, please cite the papers for which it was dev
 }
 ```
 
-## Support
+## サポート
 
-To get help with angr, you can ask via:
+angrのヘルプを得るには、以下の方法で質問できます:
 
-* the slack channel: [angr.slack.com](https://angr.slack.com), for which you can get an account [here](https://angr.io/invite/).
-* opening an issue on the appropriate github repository
+* slackチャンネル: [angr.slack.com](https://angr.slack.com)、 [こちら](https://angr.io/invite/)からアカウントを取得できます。
+* 適切なGitHubリポジトリでissueを開く。
 
-## Going further:
+## さらに詳しく
 
-You can read this [paper](https://www.cs.ucsb.edu/~vigna/publications/2016_SP_angrSoK.pdf), explaining some of the internals, algorithms, and used techniques to get a better understanding on what's going on under the hood.
+[この論文](https://www.cs.ucsb.edu/~vigna/publications/2016_SP_angrSoK.pdf)では、内部構造、アルゴリズム、使用されている手法が説明されており、内部で何が起こっているのかをより深く理解できます。
