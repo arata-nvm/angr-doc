@@ -5,8 +5,8 @@
   * [How to Contribute](HACKING.md)
   * [What to Contribute](HELPWANTED.md)
   * [Frequently Asked Questions](docs/faq.md)
-* Core Concepts
-  * [Top Level Interfaces](docs/toplevel.md)
+* コアコンセプト
+  * [トップレベルインターフェイス](docs/toplevel.md)
   * [Loading a Binary](docs/loading.md)
   * [Solver Engine](docs/solver.md)
   * [Program State](docs/states.md)

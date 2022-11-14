@@ -1,41 +1,41 @@
 
-# Before You Start
+# 始める前に
 
-Using and exploring angr in IPython (or other Python command line interpreters) is a main use case that we design angr for.
-When you are not sure what interfaces are available, tab completion is your friend!
+IPython（または他のPythonコマンドラインインタプリタ）でangrを使い、探索することは、私たちがangrを設計する際の主なユースケースです。
+どのようなインターフェイスが利用できるかわからない場合、タブ補完はあなたの味方です！
 
-Sometimes tab completion in IPython can be slow.
-We find the following workaround helpful without degrading the validity of completion results:
+ときどきIPythonのタブ補完が遅くなります。
+次の方法でタブ補完の精度を低下させることなくこの問題を回避できます:
 
 ```python
-# Drop this file in IPython profile's startup directory to avoid running it every time.
+# 毎回実行するのを避けるため、このファイルをIPythonのスタートアップディレクトリに保存します。
 import IPython
 py = IPython.get_ipython()
 py.Completer.use_jedi = False
 ```
 
-# Core Concepts
+# コアコンセプト
 
-Before getting started with angr, you'll need to have a basic overview of some fundamental angr concepts and how to construct some basic angr objects.
-We'll go over this by examining what's directly available to you after you've loaded a binary!
+angrを使い始める前に、基本的なangrの概念と、angrオブジェクトを構築する方法についていくつか知っておく必要があります。
+バイナリをロードした後に、何が直接利用できるかを調べることで、この点について確認します！
 
-Your first action with angr will always be to load a binary into a _project_. We'll use `/bin/true` for these examples.
+常にangrでの最初のアクションは、バイナリを _プロジェクト_ にロードすることです。この例では`/bin/true`を使用します。
 
 ```python
 >>> import angr
 >>> proj = angr.Project('/bin/true')
 ```
 
-A project is your control base in angr.
-With it, you will be able to dispatch analyses and simulations on the executable you just loaded.
-Almost every single object you work with in angr will depend on the existence of a project in some form.
+プロジェクトはangrの制御基地です。
+これを用いて、読み込んだ実行可能ファイルについて解析やシミュレーションを行うことができます。
+angrで扱うほぼすべてのオブジェクトは、何らかの形でプロジェクトの存在に依存しています。
 
-## Basic properties
+## 基本的なプロパティ
 
-First, we have some basic properties about the project: its CPU architecture, its filename, and the address of its entry point.
+まず、プロジェクトに関する基本的なプロパティを取得します: CPUアーキテクチャ、ファイル名、エントリポイントのアドレス
 
 ```python
->>> import monkeyhex # this will format numerical results in hexadecimal
+>>> import monkeyhex # これにより、数値の結果が16進数にフォーマットされます
 >>> proj.arch
 <Arch AMD64 (LE)>
 >>> proj.entry
@@ -44,19 +44,19 @@ First, we have some basic properties about the project: its CPU architecture, it
 '/bin/true'
 ```
 
-* _arch_ is an instance of an `archinfo.Arch` object for whichever architecture the program is compiled, in this case little-endian amd64. It contains a ton of clerical data about the CPU it runs on, which you can peruse [at your leisure](https://github.com/angr/archinfo/blob/master/archinfo/arch_amd64.py). The common ones you care about are `arch.bits`, `arch.bytes` \(that one is a `@property` declaration on the [main `Arch` class](https://github.com/angr/archinfo/blob/master/archinfo/arch.py)\), `arch.name`, and `arch.memory_endness`.
-* _entry_ is the entry point of the binary!
-* _filename_ is the absolute filename of the binary. Riveting stuff!
+* _arch_ はプログラムがコンパイルされたアーキテクチャの`archinfo.Arch`オブジェクトのインスタンスです（この場合はリトルエンディアンのamd64）。このオブジェクトには実行するCPUに関する膨大な情報が含まれており、[自由に](https://github.com/angr/archinfo/blob/master/archinfo/arch_amd64.py)閲覧できます。一般的には、`arch.bits`、`arch.bytes`（これは[メイン`Arch`クラス](https://github.com/angr/archinfo/blob/master/archinfo/arch.py)の`@property`宣言です）、`arch.name`、`arch.memory_endness`が使用されます。
+* _entry_ はバイナリのエントリポイントです！
+* _filename_ はバイナリのファイル名です。楽しい！
 
-## The loader
+## Loader
 
-Getting from a binary file to its representation in a virtual address space is pretty complicated! We have a module called CLE to handle that. CLE's result, called the loader, is available in the `.loader` property. We'll get into detail on how to use this [soon](./loading.md), but for now just know that you can use it to see the shared libraries that angr loaded alongside your program and perform basic queries about the loaded address space.
+バイナリファイルから仮想アドレス空間での表現を得るのは非常に複雑です！これを処理するために、CLEというモジュールがあります。CLEの結果はローダーと呼ばれ、`.loader`プロパティから利用できます。この使い方の詳細については[後ほど](./loading.md)説明しますが、angrがプログラムと一緒にロードした共有ライブラリを確認したり、ロードしたアドレス空間について基本的なクエリを実行したりするために使用できることを知っておいてください。
 
 ```python
 >>> proj.loader
 <Loaded true, maps [0x400000:0x5004000]>
 
->>> proj.loader.shared_objects # may look a little different for you!
+>>> proj.loader.shared_objects # あなたの環境では結果が異なるかもしれません！
 {'ld-linux-x86-64.so.2': <ELF Object ld-2.24.so, maps [0x2000000:0x2227167]>,
  'libc.so.6': <ELF Object libc-2.24.so, maps [0x1000000:0x13c699f]>}
 
@@ -65,30 +65,30 @@ Getting from a binary file to its representation in a virtual address space is p
 >>> proj.loader.max_addr
 0x5004000
 
->>> proj.loader.main_object  # we've loaded several binaries into this project. Here's the main one!
+>>> proj.loader.main_object  # このプロジェクトにはいくつかのバイナリをロードしました。メインはこれです！
 <ELF Object true, maps [0x400000:0x60721f]>
 
->>> proj.loader.main_object.execstack  # sample query: does this binary have an executable stack?
+>>> proj.loader.main_object.execstack  # クエリの例: このバイナリはスタックが実行可能か？
 False
->>> proj.loader.main_object.pic  # sample query: is this binary position-independent?
+>>> proj.loader.main_object.pic  # クエリの例: このバイナリは位置独立か?
 True
 ```
 
-## The factory
+## Factory
 
-There are a lot of classes in angr, and most of them require a project to be instantiated. Instead of making you pass around the project everywhere, we provide `project.factory`, which has several convenient constructors for common objects you'll want to use frequently.
+angrにはたくさんのクラスがあり、そのほとんどはインスタンス化するためにプロジェクトを必要とします。プロジェクトをあちこちへ渡す代わりに、`project.factory`を提供しています。このファクトリーは頻繁に使うオブジェクトの便利なコンストラクターを持っています。
 
-This section will also serve as an introduction to several basic angr concepts. Strap in!
+このセクションでは、いくつかの基本的なangrの概念の紹介も行います。準備はいいかい！
 
 #### Blocks
 
-First, we have `project.factory.block()`, which is used to extract a [basic block](https://en.wikipedia.org/wiki/Basic_block) of code from a given address. This is an important fact - _angr analyzes code in units of basic blocks._ You will get back a Block object, which can tell you lots of fun things about the block of code:
+まず、`project.factory.block()`は特定のアドレスからコードの[基本ブロック](https://en.wikipedia.org/wiki/Basic_block)を抽出するために使われます。これは重要な事実です。 _angrは基本ブロック単位でコードを解析します。_ Blockオブジェクトが返されるので、これを使ってコードのブロックについておもしろいことがいろいろとわかります:
 
 ```python
->>> block = proj.factory.block(proj.entry) # lift a block of code from the program's entry point
+>>> block = proj.factory.block(proj.entry) # プログラムのエントリポイントからコードブロックをリフトする
 <Block for 0x401670, 42 bytes>
 
->>> block.pp()                          # pretty-print a disassembly to stdout
+>>> block.pp()                          # ディスアセンブルした結果を標準出力に整形して出力する
 0x401670:       xor     ebp, ebp
 0x401672:       mov     r9, rdx
 0x401675:       pop     rsi
@@ -101,53 +101,53 @@ First, we have `project.factory.block()`, which is used to extract a [basic bloc
 0x40168d:       lea     rdi, [rip - 0xd4]
 0x401694:       call    qword ptr [rip + 0x205866]
 
->>> block.instructions                  # how many instructions are there?
+>>> block.instructions                  # 命令は何個ある？
 0xb
->>> block.instruction_addrs             # what are the addresses of the instructions?
+>>> block.instruction_addrs             # 命令のアドレスは？
 [0x401670, 0x401672, 0x401675, 0x401676, 0x401679, 0x40167d, 0x40167e, 0x40167f, 0x401686, 0x40168d, 0x401694]
 ```
 
-Additionally, you can use a Block object to get other representations of the block of code:
+さらに、Blockオブジェクトを使用して、コードブロックの他の表現を取得できます:
 
 ```python
->>> block.capstone                       # capstone disassembly
+>>> block.capstone                       # Capstone Block
 <CapstoneBlock for 0x401670>
->>> block.vex                            # VEX IRSB (that's a Python internal address, not a program address)
+>>> block.vex                            # VEX IRSB （Pythonの内部アドレスであり、プログラムアドレスではありません）
 <pyvex.block.IRSB at 0x7706330>
 ```
 
 #### States
 
-Here's another fact about angr - the `Project` object only represents an "initialization image" for the program. When you're performing execution with angr, you are working with a specific object representing a _simulated program state_ - a `SimState`. Let's grab one right now!
+ここでangrに関するもう1つの事実があります。`Project`オブジェクトはプログラムの「初期化イメージ」を表しているに過ぎません。angrで実行する場合、 _シミュレーションされたプログラムの状態_ を表す特定のオブジェクト`SimState`を使います。1つ手に入れてみましょう！
 
 ```python
 >>> state = proj.factory.entry_state()
 <SimState @ 0x401670>
 ```
 
-A SimState contains a program's memory, registers, filesystem data... any "live data" that can be changed by execution has a home in the state. We'll cover how to interact with states in depth later, but for now, let's use `state.regs`and `state.mem` to access the registers and memory of this state:
+SimStateにはある状態におけるプログラムのメモリ、レジスタ、ファイルシステムのデータなど、実行時に変更される可能性のある「ライブデータ」が含まれています。状態の扱い方について後ほど詳しく説明しますが、ここでは`state.regs`と`state.mem`を使ってこの状態のレジスタとメモリにアクセスしてみましょう:
 
 ```python
->>> state.regs.rip        # get the current instruction pointer
+>>> state.regs.rip        # 現在の命令ポインタを取得する
 <BV64 0x401670>
 >>> state.regs.rax
 <BV64 0x1c>
->>> state.mem[proj.entry].int.resolved  # interpret the memory at the entry point as a C int
+>>> state.mem[proj.entry].int.resolved  # エントリポイントのメモリをCのintとして解釈する
 <BV32 0x8949ed31>
 ```
 
-Those aren't Python ints! Those are _bitvectors_. Python integers don't have the same semantics as words on a CPU, e.g. wrapping on overflow, so we work with bitvectors, which you can think of as an integer as represented by a series of bits, to represent CPU data in angr. Note that each bitvector has a `.length` property describing how wide it is in bits.
+これらはPythonのintではありません！これらは _ビットベクトル_ です。Pythonの整数はCPU上のワードと同じセマンティクスを持ちません。たとえばオーバーフロー時の動作が異なります。したがってangrではCPUのデータを表現するためにビットベクトルを使っています。これは整数をビット列で表現したものと考えることができます。各ビットベクトルは何ビットの幅を持っているかを表す`.length`プロパティを持っています。
 
-We'll learn all about how to work with them soon, but for now, here's how to convert from Python ints to bitvectors and back again:
+ビットベクトルをどう操作するかについてはすぐに学習しますが、まずはPythonのintをビットベクトルに変換する方法を説明します:
 
 ```python
->>> bv = state.solver.BVV(0x1234, 32)       # create a 32-bit-wide bitvector with value 0x1234
-<BV32 0x1234>                               # BVV stands for bitvector value
->>> state.solver.eval(bv)                # convert to Python int
+>>> bv = state.solver.BVV(0x1234, 32)       # 値が0x1234の32ビット幅のビットベクトルを作成する
+<BV32 0x1234>                               # BVVはBitVector Valueを表す
+>>> state.solver.eval(bv)                # Pythonのintに変換する
 0x1234
 ```
 
-You can store these bitvectors back to registers and memory, or you can directly store a Python integer and it'll be converted to a bitvector of the appropriate size:
+これらのビットベクトルはレジスタやメモリに格納できます。また、Pythonの整数を直接格納すると適切なサイズのビットベクトルに変換されます:
 
 ```python
 >>> state.regs.rsi = state.solver.BVV(3, 64)
@@ -159,34 +159,34 @@ You can store these bitvectors back to registers and memory, or you can directly
 <BV64 0x4>
 ```
 
-The `mem` interface is a little confusing at first, since it's using some pretty hefty Python magic. The short version of how to use it is:
+`mem`インターフェイスはかなり強力なPythonマジックを使用しているため、最初は少し混乱します。使い方を簡単に説明すると、次のとおりです:
 
-* Use array\[index\] notation to specify an address
-* Use `.<type>` to specify that the memory should be interpreted as &lt;type&gt; \(common values: char, short, int, long, size_t, uint8_t, uint16_t...\)
-* From there, you can either:
-  * Store a value to it, either a bitvector or a Python int
-  * Use `.resolved` to get the value as a bitvector
-  * Use `.concrete` to get the value as a Python int
+* array\[index\]記法を使ってアドレスを指定します。
+* `.<type>`を使ってメモリを&lt;type&gt;として解釈することを指定します。（一般的な値: char, short, int, long, size_t, uint8_t, uint16_tなど）
+* そこから、次のいずれかを実行できます:
+  * ビットベクトルかPythonのintの値を格納します。
+  * `.resolved`を使ってビットベクトルとして値を取得します。
+  * `.concrete`を使ってPythonのintとして値を取得します。
 
-There are more advanced usages that will be covered later!
+より高度な使用方法は、あとで説明します！
 
-Finally, if you try reading some more registers you may encounter a very strange looking value:
+最後に、さらにいくつかのレジスタを読んでみると、非常に奇妙な値に遭遇することがあります:
 
 ```python
 >>> state.regs.rdi
 <BV64 reg_48_11_64{UNINITIALIZED}>
 ```
 
-This is still a 64-bit bitvector, but it doesn't contain a numerical value.
-Instead, it has a name!
-This is called a _symbolic variable_ and it is the underpinning of symbolic execution.
-Don't panic! We will discuss all of this in detail exactly two chapters from now.
+これは64ビットのビットベクトルですが、数値は含まれていません。
+その代わりに名前がついています！
+これは _シンボリック変数_ と呼ばれ、シンボリック実行の基礎となるものです。
+慌てないで！これから2章に渡って詳しく説明します。
 
 #### Simulation Managers
 
-If a state lets us represent a program at a given point in time, there must be a way to get it to the _next_ point in time. A simulation manager is the primary interface in angr for performing execution, simulation, whatever you want to call it, with states. As a brief introduction, let's show how to tick that state we created earlier forward a few basic blocks.
+もし、状態によってある時点でのプログラムを表現できるならば、それを _次の_ 時点に到達させる方法があるはずです。シミュレーションマネージャーは、状態を使って実行やシミュレーションを行うための、angrの主要なインターフェイスです。簡単な紹介として、さきほど作成した状態を使っていくつか基本ブロックを進める方法を示します。
 
-First, we create the simulation manager we're going to be using. The constructor can take a state or a list of states.
+まず、使用するシミュレーションマネージャーを作成します。コンストラクターには、1つの状態か状態のリストを渡すことができます。
 
 ```python
 >>> simgr = proj.factory.simulation_manager(state)
@@ -195,33 +195,33 @@ First, we create the simulation manager we're going to be using. The constructor
 [<SimState @ 0x401670>]
 ```
 
-A simulation manager can contain several _stashes_ of states. The default stash, `active`, is initialized with the state we passed in. We could look at `simgr.active[0]` to look at our state some more, if we haven't had enough!
+シミュレーションマネージャーは、いくつかの状態の _スタッシュ_ を持つことができます。デフォルトのスタッシュである`active`は、コンストラクターに渡された状態で初期化されます。`simgr.active[0]`を使って、状態をさらに確認できます。
 
-Now... get ready, we're going to do some execution.
+さあ… 準備をしましょう、実行します。
 
 ```python
 >>> simgr.step()
 ```
 
-We've just performed a basic block's worth of symbolic execution! We can look at the active stash again, noticing that it's been updated, and furthermore, that it has **not** modified our original state. SimState objects are treated as immutable by execution - you can safely use a single state as a "base" for multiple rounds of execution.
+基本ブロックのぶんだけシンボリック実行を行いました！アクティブなスタッシュをもう一度見ると、それが更新されていること、さらに元の状態が**変更されていない**ことがわかります。SimStateオブジェクトは実行時にイミュータブルなものとして扱われます。1つの状態を、複数回の実行の「ベース」として安全に使用できます。
 
 ```python
 >>> simgr.active
 [<SimState @ 0x1020300>]
->>> simgr.active[0].regs.rip                 # new and exciting!
+>>> simgr.active[0].regs.rip                 # 新しくてエキサイティング！
 <BV64 0x1020300>
->>> state.regs.rip                           # still the same!
+>>> state.regs.rip                           # 相変わらず！
 <BV64 0x401670>
 ```
 
-`/bin/true` isn't a very good example for describing how to do interesting things with symbolic execution, so we'll stop here for now.
+`/bin/true`はシンボリック実行でおもしろいことをする方法を説明するにはよい例ではないので、今はここで止めておきます。
 
 ## Analyses
 
-angr comes pre-packaged with several built-in analyses that you can use to extract some fun kinds of information from a program. Here they are:
+angrにはいくつかのビルトイン解析があらかじめパッケージされており、これらを使ってプログラムから興味深い種類の情報を抽出できます。以下はその例です:
 
 ```
->>> proj.analyses.            # Press TAB here in ipython to get an autocomplete-listing of everything:
+>>> proj.analyses.            # ここでIPythonでTABを押すと、すべての自動補完のリストが表示されます:
  proj.analyses.BackwardSlice        proj.analyses.CongruencyCheck      proj.analyses.reload_analyses       
  proj.analyses.BinaryOptimizer      proj.analyses.DDG                  proj.analyses.StaticHooker          
  proj.analyses.BinDiff              proj.analyses.DFG                  proj.analyses.VariableRecovery      
@@ -232,28 +232,28 @@ angr comes pre-packaged with several built-in analyses that you can use to extra
  proj.analyses.CFGFast              proj.analyses.Reassembler
 ```
 
-A couple of these are documented later in this book, but in general, if you want to find how to use a given analysis, you should look in the [api documentation. ](http://angr.io/api-doc/angr.html?highlight=cfg#module-angr.analysis)As an extremely brief example: here's how you construct and use a quick control-flow graph:
+いくつかは本書の後半で説明しますが、一般に、特定の解析の使用方法を知りたい場合は、[APIドキュメント](http://angr.io/api-doc/angr.html?highlight=cfg#module-angr.analysis)を読むべきです。非常に簡単な例として、制御フローグラフの作成方法と使用方法を示します:
 
 ```python
-# Originally, when we loaded this binary it also loaded all its dependencies into the same virtual address  space
-# This is undesirable for most analysis.
+# もともと、バイナリをロードした際に、依存関係もすべて同じ仮想アドレス空間にロードされました
+# これはほどんどの解析にとって望ましくありません。
 >>> proj = angr.Project('/bin/true', auto_load_libs=False)
 >>> cfg = proj.analyses.CFGFast()
 <CFGFast Analysis Result at 0x2d85130>
 
-# cfg.graph is a networkx DiGraph full of CFGNode instances
-# You should go look up the networkx APIs to learn how to use this!
+# cfg.graphはCFGNodeインスタンスでいっぱいのnetworkx DiGraphです
+# この使用方法は、networkx APIを調べてください！
 >>> cfg.graph
 <networkx.classes.digraph.DiGraph at 0x2da43a0>
 >>> len(cfg.graph.nodes())
 951
 
-# To get the CFGNode for a given address, use cfg.get_any_node
+# 特定のアドレスのCFGNodeを取得するには、cfg.get_any_nodeを使用します
 >>> entry_node = cfg.get_any_node(proj.entry)
 >>> len(list(cfg.graph.successors(entry_node)))
 2
 ```
 
-## Now what?
+## さて、どうしよう？
 
-Having read this page, you should now be acquainted with several important angr concepts: basic blocks, states, bitvectors, simulation managers, and analyses. You can't really do anything interesting besides just use angr as a glorified debugger, though! Keep reading, and you will unlock deeper powers...
+このページを読んで、angrの重要な概念を知ることができたと思います: 基本ブロック、状態、ビットベクトル、シミュレーションマネージャー、解析など。しかし、angrをデバッガーとして使う以外に、おもしろいことは何もできません！このまま読み続けると、より深い力が解き放たれるでしょう…
