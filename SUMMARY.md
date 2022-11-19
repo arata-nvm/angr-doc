@@ -7,7 +7,7 @@
   * [Frequently Asked Questions](docs/faq.md)
 * コアコンセプト
   * [トップレベルインターフェイス](docs/toplevel.md)
-  * [Loading a Binary](docs/loading.md)
+  * [バイナリのロード](docs/loading.md)
   * [Solver Engine](docs/solver.md)
   * [Program State](docs/states.md)
   * [Simulation Managers](docs/pathgroups.md)
