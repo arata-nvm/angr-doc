@@ -8,7 +8,7 @@
 * コアコンセプト
   * [トップレベルインターフェイス](docs/toplevel.md)
   * [バイナリのロード](docs/loading.md)
-  * [Solver Engine](docs/solver.md)
+  * [ソルバーエンジン](docs/solver.md)
   * [Program State](docs/states.md)
   * [Simulation Managers](docs/pathgroups.md)
   * [Execution Engines](docs/simulation.md)
