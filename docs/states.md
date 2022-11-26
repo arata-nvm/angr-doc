@@ -1,61 +1,61 @@
-# Machine State - memory, registers, and so on
+# マシンの状態 - メモリ、レジスタなど
 
-So far, we've only used angr's simulated program states (`SimState` objects) in the barest possible way in order to demonstrate basic concepts about angr's operation. Here, you'll learn about the structure of a state object and how to interact with it in a variety of useful ways.
+これまで、angrの動作に関する基本的な概念を示すために、angrがシミュレーションするプログラム状態（`SimState`オブジェクト）の必要最小限の使い方しかしてきませんでした。ここでは、状態オブジェクトの構造と、状態オブジェクトとのさまざまな便利な対話方法について学びます。
 
-## Review: Reading and writing memory and registers
+## おさらい: メモリとレジスタの読み書き
 
-If you've been reading this book in order (and you should be, at least for this first section), you already saw the basics of how to access memory and registers.
-`state.regs` provides read and write access to the registers through attributes with the names of each register, and `state.mem` provides typed read and write access to memory with index-access notation to specify the address followed by an attribute access to specify the type you would like to interpret the memory as.
+この本を順番に読んできた人なら（少なくともこの最初のセクションはそうすべきです）、メモリやレジスタにアクセスする方法の基本はすでに見たはずです。
+`state.regs`は、各レジスタの名前を持つ属性を通してレジスタへの読み書きを提供します。`state.mem`は、アドレスを指定するインデックス表記のあとに、メモリの解釈に使う型の名前を持つ属性を通してメモリへの型付きの読み書きを提供します。
 
-Additionally, you should now know how to work with ASTs, so you can now understand that any bitvector-typed AST can be stored in registers or memory.
+さらに、ASTの使い方を理解したことで、ビットベクトル型のASTであればレジスタやメモリに格納可能なことがが理解できるようになったはずです。
 
-Here are some quick examples for copying and performing operations on data from the state:
+ここでは、状態からデータをコピーして操作を実行する簡単な例を紹介します:
 
 ```python
 >>> import angr, claripy
 >>> proj = angr.Project('/bin/true')
 >>> state = proj.factory.entry_state()
 
-# copy rsp to rbp
+# rbpをrspにコピーする
 >>> state.regs.rbp = state.regs.rsp
 
-# store rdx to memory at 0x1000
+# メモリのアドレス0x1000にrdxを格納する
 >>> state.mem[0x1000].uint64_t = state.regs.rdx
 
-# dereference rbp
+# rbpの参照を外す
 >>> state.regs.rbp = state.mem[state.regs.rbp].uint64_t.resolved
 
 # add rax, qword ptr [rsp + 8]
 >>> state.regs.rax += state.mem[state.regs.rsp + 8].uint64_t.resolved
 ```
 
-## Basic Execution
+## 基本的な実行方法
 
-Earlier, we showed how to use a Simulation Manager to do some basic execution.
-We'll show off the full capabilities of the simulation manager in the next chapter, but for now we can use a much simpler interface to demonstrate how symbolic execution works: `state.step()`.
-This method will perform one step of symbolic execution and return an object called [`SimSuccessors`](http://angr.io/api-doc/angr.html#module-angr.engines.successors).
-Unlike normal emulation, symbolic execution can produce several successor states that can be classified in a number of ways.
-For now, what we care about is the `.successors` property of this object, which is a list containing all the "normal" successors of a given step.
+先に、Simulation Managerを使った基本的な実行方法を示しました。
+次の章ではSimulation Managerの全機能を紹介しますが、ここではもっと簡単なインターフェイスである`state.step()`を使ってシンボリック実行がどのように機能するのかを示します。
+このメソッドはシンボリック実行の1ステップを実行し、[`SimSuccessors`](http://angr.io/api-doc/angr.html#module-angr.engines.successors)と呼ばれるオブジェクトを返します。
+通常のエミュレーションとは異なり、シンボリック実行ではさまざまな方法で分類される複数の後継状態を生成できます。
+いまのところ、このオブジェクトの`.successors`プロパティに注目しています。これは、与えられたステップの「通常の」後継者をすべて含むリストです。
 
-Why a list, instead of just a single successor state?
-Well, angr's process of symbolic execution is just the taking the operations of the individual instructions compiled into the program and performing them to mutate a SimState.
-When a line of code like `if (x > 4)` is reached, what happens if x is a symbolic bitvector?
-Somewhere in the depths of angr, the comparison `x > 4` is going to get performed, and the result is going to be `<Bool x_32_1 > 4>`.
+なぜ1つの後継状態ではなく、リストなのでしょうか？
+angrのシンボリック実行の処理は、プログラムにコンパイルされた個々の命令の演算を取り出し、それを実行してSimStateを変化させるだけです。
+`if (x > 4)`のようなコード行に到達したとき、xがシンボリックなビットベクトルだった場合どうなるのでしょうか？
+angrの深部のどこかで`x > 4`の比較が実行され、その結果は`<Bool x_32_1 > 4>`となります。
 
-That's fine, but the next question is, do we take the "true" branch or the "false" one?
-The answer is, we take both!
-We generate two entirely separate successor states - one simulating the case where the condition was true and simulating the case where the condition was false.
-In the first state, we add `x > 4` as a constraint, and in the second state, we add `!(x > 4)` as a constraint.
-That way, whenever we perform a constraint solve using either of these successor states, *the conditions on the state ensure that any solutions we get are valid inputs that will cause execution to follow the same path that the given state has followed.*
+それはよいとして、次の質問は、「真」の分岐を取るか「偽」の分岐を取るか、ということです。
+答えは両方です！
+条件が真であったときのシミュレーションと、偽であったときのシミュレーションの、2つのまったく別の後継状態を生成します。
+前者の状態では制約として`x > 4`を追加し、後者の状態では制約として`!(x > 4)`を追加します。
+このようにして、これらの後継状態のいずれかを使用して制約解消を実行するときはいつでも、*状態の条件によって得られるすべての解が、与えられた状態がたどったのと同じパスを実行することになる有効な入力であることが保証されます。*
 
-To demonstrate this, let's use a [fake firmware image](../examples/fauxware/fauxware) as an example.
-If you look at the [source code](../examples/fauxware/fauxware.c) for this binary, you'll see that the authentication mechanism for the firmware is backdoored; any username can be authenticated as an administrator with the password "SOSNEAKY".
-Furthermore, the first comparison against user input that happens is the comparison against the backdoor, so if we step until we get more than one successor state, one of those states will contain conditions constraining the user input to be the backdoor password.
-The following snippet implements this:
+これを示すために、[偽のファームウェアイメージ](../examples/fauxware/fauxware)を例として使ってみましょう。
+このバイナリの[ソースコード](../examples/fauxware/fauxware.c)を読むと、ファームウェアの認証機構がバックドアになっていることがわかります。どんなユーザー名でもパスワード「SOSNEAKY」で管理者として認証することが可能なのです。
+さらに、バックドアに対する比較がユーザー入力に対して最初に行われます。したがって、複数の後継状態が得られるまでステップすると、それらの状態の1つはユーザー入力がバックドアパスワードであることを制約として持つことになります。
+次のスニペットはこれを実装したものです:
 
 ```python
 >>> proj = angr.Project('examples/fauxware/fauxware')
->>> state = proj.factory.entry_state(stdin=angr.SimFile)  # ignore that argument for now - we're disabling a more complicated default setup for the sake of education
+>>> state = proj.factory.entry_state(stdin=angr.SimFile)  # ここでは教育のためにより複雑なデフォルト設定を無効にしています
 >>> while True:
 ...     succ = state.step()
 ...     if len(succ.successors) == 2:
@@ -69,11 +69,11 @@ The following snippet implements this:
 <SimState @ 0x400699
 ```
 
-Don't look at the constraints on these states directly - the branch we just went through involves the result of `strcmp`, which is a tricky function to emulate symbolically, and the resulting constraints are _very_ complicated.
+これらの状態の制約を直接見てはいけません。ここで通過した分岐は`strcmp`の結果を含んでおり、シンボリックにエミュレートするには厄介な関数であるため結果として制約も _非常に_ 複雑なものとなっています。
 
-The program we emulated took data from standard input, which angr treats as an infinite stream of symbolic data by default.
-To perform a constraint solve and get a possible value that input could have taken in order to satisfy the constraints, we'll need to get a reference to the actual contents of stdin.
-We'll go over how our file and input subsystems work later on this very page, but for now, just use `state.posix.stdin.load(0, state.posix.stdin.size)` to retrieve a bitvector representing all the content read from stdin so far.
+angrはデフォルトで標準入力をシンボリックデータの無限のストリームとして扱い、エミュレートしたプログラムはここからデータを取得します。
+制約解消を行い、制約を満たすような入力値を得るには、stdinの実際の内容への参照を得る必要があります。
+ファイルサブシステムと入力サブシステムがどのように動作するかについてはこのページの後半で説明しますが、ここではstdinからこれまでに読み込まれたすべての内容を表すビットベクトルを取得するために`state.posix.stdin.load(0, state.posix.stdin.size)`を使用するだけでよいでしょう。
 
 ```python
 >>> input_data = state1.posix.stdin.load(0, state1.posix.stdin.size)
@@ -85,62 +85,61 @@ b'\x00\x00\x00\x00\x00\x00\x00\x00\x00SOSNEAKY\x00\x00\x00'
 b'\x00\x00\x00\x00\x00\x00\x00\x00\x00S\x00\x80N\x00\x00 \x00\x00\x00\x00'
 ```
 
-As you can see, in order to go down the `state1` path, you must have given as a password the backdoor string "SOSNEAKY".
-In order to go down the `state2` path, you must have given something _besides_ "SOSNEAKY".
-z3 has helpfully provided one of the billions of strings fitting this criteria.
+ご覧の通り、`state1`へ進むにはパスワードとしてバックドアの文字列である「SOSNEAKY」を与える必要があります。
+`state2`へ進むには「SOSNEAKY」 _以外の_ ものを渡さなければなりません。
+z3はこの条件にあう数十億の文字列のうち1つを親切にも提供してくれています。
 
-Fauxware was the first program angr's symbolic execution ever successfully worked on, back in 2013.
-By finding its backdoor using angr you are participating in a grand tradition of having a bare-bones understanding of how to use symbolic execution to extract meaning from binaries!
+Fauxwareは2013年にangrのシンボリック実行が成功した最初のプログラムです。angrを使ってそのバックドアを見つけることで、あなたはバイナリから意味を抽出するための基本的なシンボリック実行の使い方を理解するという立派な伝統に参加することになるのです！
 
-## State Presets
+## プリセットの状態
 
-So far, whenever we've been working with a state, we've created it with `project.factory.entry_state()`.
-This is just one of several *state constructors* available on the project factory:
+これまで、状態を扱うときはいつでも`project.factory.entry_state()`を使って状態を作成してきました。
+これは、プロジェクトのファクトリーで利用可能ないくつかの *状態のコンストラクター* の1つに過ぎません:
 
-- `.blank_state()` constructs a "blank slate" blank state, with most of its data left uninitialized.
-  When accessing uninitialized data, an unconstrained symbolic value will be returned.
-- `.entry_state()` constructs a state ready to execute at the main binary's entry point.
-- `.full_init_state()` constructs a state that is ready to execute through any initializers that need to be run before the main binary's entry point, for example, shared library constructors or preinitializers.
-  When it is finished with these it will jump to the entry point.
-- `.call_state()` constructs a state ready to execute a given function.
+- `.blank_state()`は、ほとんどのデータが初期化されていない「白紙状態」のブランクな状態を構築します。
+  初期化されていないデータにアクセスする場合、制約のないシンボル値が返されます。
+- `.entry_state()`は、メインバイナリのエントリポイントで実行可能な状態を構築します。
+- `.full_init_state()`は、メインバイナリのエントリポイントの前に実行する必要があるすべてのイニシャライザー（たとえば、共有ライブラリのコンストラクターやプリイニシャライザー）を介して実行する準備が整った状態を構築します。
+  これらの実行が完了すると、エントリポイントにジャンプします。
+- `.call_state()`は、与えられた関数を実行する準備ができている状態を構築します。
 
-You can customize the state through several arguments to these constructors:
+これらのコンストラクターのいくつかの引数を通じて、状態をカスタマイズできます:
 
-- All of these constructors can take an `addr` argument to specify the exact address to start.
+- これらのコンストラクターはすべて`addr`引数を取り、開始アドレスを指定できます。
 
-- If you're executing in an environment that can take command line arguments or an environment, you can pass a list of arguments through `args` and a dictionary of environment variables through `env` into `entry_state` and `full_init_state`.
-  The values in these structures can be strings or bitvectors, and will be serialized into the state as the arguments and environment to the simulated execution.
-  The default `args` is an empty list, so if the program you're analyzing expects to find at least an `argv[0]`, you should always provide that!
+- コマンドライン引数が取得できる環境で実行する場合、`entry_state`と`full_init_state`には`args`を通して引数のリストを、`env`を通して環境変数の辞書を渡すことができます。
+  これらの引数の値は文字列またはビットベクトルであり、実行のシミュレーションに与える引数と環境としての状態にシリアライズされます。
+  デフォルトの`args`は空のリストなので、解析対象のプログラムが少なくとも`argv[0]`を参照できることを期待しているならば、常にそれを提供するべきです！
 
-- If you'd like to have `argc` be symbolic, you can pass a symbolic bitvector as `argc` to the `entry_state` and `full_init_state` constructors.
-  Be careful, though: if you do this, you should also add a constraint to the resulting state that your value for argc cannot be larger than the number of args you passed into `args`.
+- `argc`をシンボリックにしたい場合は、`entry_state`と`full_init_state`コンストラクターには`argc`としてシンボリックなビットベクトルを渡すことができます。
+  この場合、argcの値は`args`に渡した引数の数より大きいという制約を、構築した状態に追加する必要があることに注意してください。
   
-- To use the call state, you should call it with `.call_state(addr, arg1, arg2, ...)`, where `addr` is the address of the function you want to call and `argN` is the Nth argument to that function, either as a Python integer, string, or array, or a bitvector.
-  If you want to have memory allocated and actually pass in a pointer to an object, you should wrap it in an PointerWrapper, i.e. `angr.PointerWrapper("point to me!")`.
-  The results of this API can be a little unpredictable, but we're working on it.
+- 呼び出し状態を利用するには、`.call_state(addr, arg1, arg2, ...)`のように呼び出す必要があります。ここで`addr`は呼び出したい関数のアドレスです。また、`argN`はその関数のN番目の引数で、Pythonの整数、文字列、配列、またはビットベクトルが使用できます。
+  もし、オブジェクトのメモリを確保して、そのポインターを渡したい場合は、PointerWrapperでラップする必要があります。つまり、`angr.PointerWrapper("point to me!")`となります。
+  このAPIの結果は少し予測できないことがありますが、私達はその修正に取り組んでいます。
   
-- To specify the calling convention used for a function with `call_state`, you can pass a [`SimCC` instance](http://angr.io/api-doc/angr.html#module-angr.calling_conventions) as the `cc` argument.    
-  We try to pick a sane default, but for special cases you will need to help angr out.
+- `call_state`で関数に使用される呼び出し規約を指定するには、`cc`引数として[`SimCC`インスタンス](http://angr.io/api-doc/angr.html#module-angr.calling_conventions)を渡します。
+  適切なものをデフォルトで選択しますが、特殊な場合ではangrを助ける必要があります。
 
-There are several more options that can be used in any of these constructors! See the [docs on the `project.factory` object (an `AngrObjectFactory`)](http://angr.io/api-doc/angr.html#angr.factory.AngrObjectFactory) for more details.
+これらのコンストラクターで使用できるオプションは、他にもいくつかあります！詳しくは[`project.factory`オブジェクト（`AngrObjectFactory`）のドキュメント](http://angr.io/api-doc/angr.html#angr.factory.AngrObjectFactory)を参照してください。
 
-## Low level interface for memory
+## メモリに関する低レベルのインターフェイス
 
-The `state.mem` interface is convenient for loading typed data from memory, but when you want to do raw loads and stores to and from ranges of memory, it's very cumbersome.
-It turns out that `state.mem` is actually just a bunch of logic to correctly access the underlying memory storage, which is just a flat address space filled with bitvector data: `state.memory`.
-You can use `state.memory` directly with the `.load(addr, size)` and `.store(addr, val)` methods:
+`state.mem`インターフェイスはメモリから型付けされたデータをロードするのには便利ですが、メモリの特定の範囲で直接データを読み書きしたいときには非常に面倒です。
+`state.mem`は、実際にはビットベクトルのデータで満たされたフラットアドレス空間のメモリストレージである`state.memory`にアクセスするためのロジックの束に過ぎません。
+`.load(addr, size)`と`.store(addr, val)`メソッドを使って`state.memory`を直接扱うことができます:
 
 ```python
 >>> s = proj.factory.blank_state()
 >>> s.memory.store(0x4000, s.solver.BVV(0x0123456789abcdef0123456789abcdef, 128))
->>> s.memory.load(0x4004, 6) # load-size is in bytes
+>>> s.memory.load(0x4004, 6) # ロードサイズはバイト単位
 <BV48 0x89abcdef0123>
 ```
 
-As you can see, the data is loaded and stored in a "big-endian" fashion, since the primary purpose of `state.memory` is to load an store swaths of data with no attached semantics.
-However, if you want to perform a byteswap on the loaded or stored data, you can pass a keyword argument `endness` - if you specify little-endian, byteswap will happen.
-The endness should be one of the members of the `Endness` enum in the `archinfo` package used to hold declarative data about CPU architectures for angr.
-Additionally, the endness of the program being analyzed can be found as `arch.memory_endness` - for instance `state.arch.memory_endness`.
+ご覧の通り、`state.memory`の主な目的はセマンティクスを伴わないデータの読み書きであるため、データは「ビッグエンディアン」方式で読み書きされます。
+しかし、読み書きしたデータに対してバイトスワップを行いたい場合はキーワード引数`endness`を渡すことができます。リトルエンディアンを指定するとバイトスワップが行われます。
+endnessは、angrのCPUアーキテクチャに関する宣言型を提供する`archinfo`パッケージで定義されている、`Endness` enumのメンバーのいずれかである必要があります。
+さらに、解析対象のプログラムのendnessは`state.arch.memory_endness`のように、`arch.memory_endness`として知ることができます。
 
 ```python
 >>> import archinfo
@@ -148,92 +147,89 @@ Additionally, the endness of the program being analyzed can be found as `arch.me
 <BV32 0x67452301>
 ```
 
-There is also a low-level interface for register access, `state.registers`, that uses the exact same API as `state.memory`, but explaining its behavior involves a [dive](ir.md) into the abstractions that angr uses to seamlessly work with multiple architectures.
-The short version is that it is simply a register file, with the mapping between registers and offsets defined in [archinfo](https://github.com/angr/archinfo).
+また、`state.memory`とまったく同じAPIを使う`state.registers`というレジスタアクセスのための低レベルのインターフェイスがありますが、その動作を説明するには複数のアーキテクチャをシームレスに扱うためのangrの抽象化機能に[踏み込む](ir.md)必要があります。
+簡単に説明すると、レジスタとオフセットのマッピングが[archinfo](https://github.com/angr/archinfo)で定義されている、単純なレジスタファイルということです。
 
+## 状態のオプション
 
-## State Options
+angrの内部には、ある場合には動作を最適化し、別の場合には不利になるような小さな微調整がたくさんあります。
+これらの微調整は状態のオプションで制御します。
 
-There are a lot of little tweaks that can be made to the internals of angr that will optimize behavior in some situations and be a detriment in others.
-These tweaks are controlled through state options.
+各SimStateオブジェクトには、有効なオプションのセット（`state.options`）が存在します。
+各オプション（実際には単なる文字列）は、angrの実行エンジンの動作を細かく制御します。
+すべてのオプションの一覧と、さまざまな状態型におけるデフォルト値は[付録](appendices/options.md)に記載されています。
+状態のそれぞれのオプションには`angr.options`を通じてアクセスできます。
+それぞれのオプションは大文字で命名されますが、まとめて使いたいような共通のグループ化されたオブジェクトが小文字で命名されることもあります。
 
-On each SimState object, there is a set (`state.options`) of all its enabled options.
-Each option (really just a string) controls the behavior of angr's execution engine in some minute way.
-A listing of the full domain of options, along with the defaults for different state types, can be found in [the appendix](appendices/options.md).
-You can access an individual option for adding to a state through `angr.options`.
-The individual options are named with CAPITAL_LETTERS, but there are also common groupings of objects that you might want to use bundled together, named with lowercase_letters.
-
-When creating a SimState through any constructor, you may pass the keyword arguments `add_options` and `remove_options`, which should be sets of options that modify the initial options set from the default.
+SimStateをコンストラクターで作成する場合はキーワード引数の`add_options`と`remove_options`を渡すことができ、これらは最初のオプションセットをデフォルト値から変更するオプションセットである必要があります。
 
 ```python
-# Example: enable lazy solves, an option that causes state satisfiability to be checked as infrequently as possible.
-# This change to the settings will be propagated to all successor states created from this state after this line.
+# 例: 遅延解決を有効にします。これは状態の充足可能性をできるだけ頻繁にチェックしないようにするオプションです。
+# この設定の変更は、この行以降にこの状態から作成されるすべての後継状態に伝搬されます。
 >>> s.options.add(angr.options.LAZY_SOLVES)
 
-# Create a new state with lazy solves enabled
+# 遅延解決を有効にした新しい状態を作成します。
 >>> s = proj.factory.entry_state(add_options={angr.options.LAZY_SOLVES})
 
-# Create a new state without simplification options enabled
+# 単純化のオプションを無効にした新しい状態を作成します。
 >>> s = proj.factory.entry_state(remove_options=angr.options.simplification)
 ```
 
 ## State Plugins
 
-With the exception of the set of options just discussed, everything stored in a SimState is actually stored in a _plugin_ attached to the state.
-Almost every property on the state we've discussed so far is a plugin - `memory`, `registers`, `mem`, `regs`, `solver`, etc.
-This design allows for code modularity as well as the ability to easily [implement new kinds of data storage](state_plugins.md) for other aspects of an emulated state, or the ability to provide alternate implementations of plugins.
+さきほど紹介したオプションを除いて、SimStateに保存されているものは、実際には状態に付属する _プラグイン_ にすべて保存されています。
+`memory`、`registers`、`mem`、`regs`、`solver`などのこれまで説明してきた状態に関するほぼすべてのプロパティがプラグインです。
+この設計によって、コードのモジュール化ができるだけでなく、エミュレートされた状態の他の側面に対する[新しい種類の状態のデータストレージを簡単に実装したり](state_plugins.md)、プラグインの代替実装を提供したりできます。
 
-For example, the normal `memory` plugin simulates a flat memory space, but analyses can choose to enable the "abstract memory" plugin, which uses alternate data types for addresses to simulate free-floating memory mappings independent of address, to provide `state.memory`.
-Conversely, plugins can reduce code complexity: `state.memory` and `state.registers` are actually two different instances of the same plugin, since the registers are emulated with an address space as well.
+たとえば、通常の`memory`プラグインはフラットメモリ空間をシミュレートしますが、「abstract memory」プラグインを有効にすることでアドレスに依存しない自由なメモリマッピングをシミュレートでき、分析ではアドレスに別のデータ型を使用した`state.memory`を利用できます。
+逆に、プラグインはコードの複雑さを軽減できます。`state.memory`と`state.registers`は実際には同じプラグインの異なるインスタンスで、レジスタはアドレス空間も含めてエミュレートされるからです。
 
-### The globals plugin
+### globalsプラグイン
 
-`state.globals` is an extremely simple plugin: it implements the interface of a standard Python dict, allowing you to store arbitrary data on a state.
+`state.globals` は非常にシンプルなプラグインです。標準的なPythonのdictのインターフェイスを実装しており、任意のデータを状態に格納できます。
 
-### The history plugin
+### historyプラグイン
 
-`state.history` is a very important plugin storing historical data about the path a state has taken during execution.
-It is actually a linked list of several history nodes, each one representing a single round of execution---you can traverse this list with `state.history.parent.parent` etc.
+`state.history`は、実行中に状態がたどった経路についての履歴データを保存する、非常に重要なプラグインです。
+このリストは`state.history.parent.parent`などでたどっていくことができます。
 
-To make it more convenient to work with this structure, the history also provides several efficient iterators over the history of certain values.
-In general, these values are stored as `history.recent_NAME` and the iterator over them is just `history.NAME`.
-For example, `for addr in state.history.bbl_addrs: print hex(addr)` will print out a basic block address trace for the binary, while `state.history.recent_bbl_addrs` is the list of basic blocks executed in the most recent step, `state.history.parent.recent_bbl_addrs` is the list of basic blocks executed in the previous step, etc.
-If you ever need to quickly obtain a flat list of these values, you can access `.hardcopy`, e.g. `state.history.bbl_addrs.hardcopy`.
-Keep in mind though, index-based accessing is implemented on the iterators.
+この構造をより便利に扱うために、historyは特定の値の履歴に対するいくつかの効率的なイテレータも提供します。
+一般的に、これらの値は `history.recent_NAME`として保存され、それらに対するイテレータは`history.NAME`となります。
+たとえば、`for addr in state.history.bbl_addrs: print hex(addr)`はバイナリの基本ブロックアドレスのトレースを出力します。一方で`state.history.recent_bbl_addrs`は最後のステップで実行した基本ブロックのリスト、`state.history.parent.recent_bbl_addrs`は前のステップで実行した基本ブロックのリストといったように、それぞれのステップの基本ブロックが出力されます。
+これらの値のフラットなリストを素早く取得したい場合は、`.hardcopy`にアクセスします（例: `state.history.bbl_addrs.hardcopy`）。
+しかし、インデックスベースのアクセスはイテレータに実装されていることに注意してください。
 
-Here is a brief listing of some of the values stored in the history:
+以下は、履歴に保存されている値の簡単なリストです:
 
-- `history.descriptions` is a listing of string descriptions of each of the rounds of execution performed on the state.
-- `history.bbl_addrs` is a listing of the basic block addresses executed by the state.
-  There may be more than one per round of execution, and not all addresses may correspond to binary code - some may be addresses at which SimProcedures are hooked.
-- `history.jumpkinds` is a listing of the disposition of each of the control flow transitions in the state's history, as VEX enum strings.
-- `history.jump_guards` is a listing of the conditions guarding each of the branches that the state has encountered.
-- `history.events` is a semantic listing of "interesting events" which happened during execution, such as the presence of a symbolic jump condition, the program popping up a message box, or execution terminating with an exit code.
-- `history.actions` is usually empty, but if you add the `angr.options.refs` options to the state, it will be populated with a log of all the memory, register, and temporary value accesses performed by the program.
+- `history.descriptions`は、状態に対して実行された各ラウンドの文字列の説明のリストです。
+- `history.bbl_addrs`は、状態で実行された基本ブロックアドレスのリストです。
+  実行ラウンドごとに1つ以上存在する可能性があります。ただし、すべてのアドレスがバイナリコードに対応するわけではありません。
+- `history.jumpkinds`は、状態の履歴における各制御フロー遷移の処理を、VEX enum文字列としてリスト化したものです。
+- `history.jump_guards`は、その状態が遭遇した各分岐をガードする条件のリストです。
+- `history.events`は、シンボリックジャンプ条件の存在や、プログラムがメッセージボックスをポップアップしたり、ある終了コードで実行を終了したりといった、実行中に起こった「興味深いイベント」のセマンティックなリストです。
+- `history.actions`は通常空ですが、`angr.options.refs`オプションを追加すると、プログラムが実行したすべてのメモリ、レジスタ、一時値のアクセスのログが入力されるようになります。
 
-### The callstack plugin
+### callstackプラグイン
 
-angr will track the call stack for the emulated program.
-On every call instruction, a frame will be added to the top of the tracked callstack, and whenever the stack pointer drops below the point where the topmost frame was called, a frame is popped.
-This allows angr to robustly store data local to the current emulated function.
+angrはエミュレートされたプログラムのコールスタックを追跡します。
+call命令が実行されるたびに追跡コールスタックの先頭へフレームが追加され、一番上にあるフレームが呼び出された時点よりスタックポインターが小さくなると、フレームが取り出されます。
+これにより、angrは現在エミュレートしている関数内のローカルなデータを堅牢に保存すできます。
 
-Similar to the history, the callstack is also a linked list of nodes, but there are no provided iterators over the contents of the nodes - instead you can directly iterate over `state.callstack` to get the callstack frames for each of the active frames, in order from most recent to oldest.
-If you just want the topmost frame, this is `state.callstack`.
+historyと同様に、コールスタックもノードのリンクリストですが、ノードの内容に対するイテレータは提供されていません。代わりに、`state.callstack`を直接イテレートして、アクティブな各フレームのコールスタックフレームを、最新のものから古いものの順に取得することが可能です。
+もし、一番上のフレームが欲しいだけなら、`state.callstack`を使用します。
 
-- `callstack.func_addr` is the address of the function currently being executed
-- `callstack.call_site_addr` is the address of the basic block which called the current function
-- `callstack.stack_ptr` is the value of the stack pointer from the beginning of the current function
-- `callstack.ret_addr` is the location that the current function will return to if it returns
+- `callstack.func_addr`は、現在実行されている関数のアドレスです。
+- `callstack.call_site_addr`は、現在の関数を呼び出した基本ブロックのアドレスです。
+- `callstack.stack_ptr`は、現在の関数が呼び出された時点でのスタックポインターの値です。
+- `callstack.ret_addr`は、現在の関数からリターンしたときに戻る場所です。
 
+## I/Oについて詳しく: ファイル、ファイルシステム、ネットワークソケット
 
-## More about I/O: Files, file systems, and network sockets
+angrにおけるI/Oのモデル化についてのより完全かつ詳細なドキュメントは、[ファイルシステム、ソケット、パイプを扱う](file_system.md)を参照してください。
 
-Please refer to [Working with File System, Sockets, and Pipes](file_system.md) for a more complete and detailed documentation of how I/O is modeled in angr.
+## コピーとマージ
 
-
-## Copying and Merging
-
-A state supports very fast copies, so that you can explore different possibilities:
+状態は非常に高速なコピーをサポートしているため、さまざまな可能性を探索できます:
 
 ```python
 >>> proj = angr.Project('/bin/true')
@@ -245,16 +241,16 @@ A state supports very fast copies, so that you can explore different possibiliti
 >>> s2.mem[0x1000].uint32_t = 0x42424242
 ```
 
-States can also be merged together.
+状態をマージすることもできます。
 
 ```python
-# merge will return a tuple. the first element is the merged state
-# the second element is a symbolic variable describing a state flag
-# the third element is a boolean describing whether any merging was done
+# mergeはタプルを返します。1つ目の要素はマージ後の状態です。
+# 2つ目の要素は状態フラグを示すシンボリック変数です。
+# 3つ目の要素はマージが行われたかを示すブーリアン値です。
 >>> (s_merged, m, anything_merged) = s1.merge(s2)
 
-# this is now an expression that can resolve to "AAAA" *or* "BBBB"
->>> aaaa_or_bbbb = s_merged.mem[0x1000].uint32_t
+# この式は今、"AAAA" *か* "BBBB"に解決できる式です。
+>>> aaaa_or_bbbb = s_merged.mem[0x1000].[uint32_t]
 ```
 
-TODO: describe limitations of merging
+TODO: マージの限界について説明する

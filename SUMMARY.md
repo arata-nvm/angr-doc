@@ -9,7 +9,7 @@
   * [トップレベルインターフェイス](docs/toplevel.md)
   * [バイナリのロード](docs/loading.md)
   * [ソルバーエンジン](docs/solver.md)
-  * [Program State](docs/states.md)
+  * [プログラムの状態](docs/states.md)
   * [Simulation Managers](docs/pathgroups.md)
   * [Execution Engines](docs/simulation.md)
   * [Analyses](docs/analyses.md)
