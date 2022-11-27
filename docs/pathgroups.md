@@ -1,17 +1,17 @@
-# Simulation Managers
+# シミュレーションマネージャー
 
-The most important control interface in angr is the SimulationManager, which allows you to control symbolic execution over groups of states simultaneously, applying search strategies to explore a program's state space.
-Here, you'll learn how to use it.
+angrでもっとも重要な制御インターフェイスはSimulationManagerです。これは、プログラムの状態空間を探索するための探索戦略を適用し、同時に状態のグループに対するシンボリックな実行を制御できます。
+ここでは、その使い方を学びます。
 
-Simulation managers let you wrangle multiple states in a slick way.
-States are organized into “stashes”, which you can step forward, filter, merge, and move around as you wish.
-This allows you to, for example, step two different stashes of states at different rates, then merge them together.
-The default stash for most operations is the `active` stash, which is where your states get put when you initialize a new simulation manager.
+シミュレーションマネージャーは、複数の状態を巧みに操ることができます。
+状態は「スタッシュ」に整理され、ステップフォワード、フィルタリング、マージ、移動が思いのままに行えます。
+このため、たとえば、2つの異なる状態のスタッシュを異なる速度でステップさせ、それらをマージできます。
+ほとんどの操作でデフォルトのスタッシュは`active`スタッシュで、これは新しいシミュレーションマネージャーを初期化するときに状態が置かれる場所です。
 
-### Stepping
+### ステップ
 
-The most basic capability of a simulation manager is to step forward all states in a given stash by one basic block.
-You do this with `.step()`.
+シミュレーションマネージャーのもっとも基本的な機能は、与えられたスタッシュにあるすべての状態を1つの基本ブロックごとにステップフォワードすることです。
+これを行うには`.step()`を使います。
 
 ```python
 >>> import angr
@@ -26,11 +26,11 @@ You do this with `.step()`.
 [<SimState @ 0x400540>]
 ```
 
-Of course, the real power of the stash model is that when a state encounters a symbolic branch condition, both of the successor states appear in the stash, and you can step both of them in sync.
-When you don't really care about controlling analysis very carefully and you just want to step until there's nothing left to step, you can just use the `.run()` method.
+もちろん、スタッシュモデルの本当の魅力は、ある状態がシンボリック分岐条件に遭遇したとき、後継の状態が両方ともスタッシュに現れ、その両方を同期してステップすることができることです。
+解析の制御をあまり気にせず、ただ何もなくなるまでステップを踏みたいときには、`.run()` メソッドを使えばよいです。
 
 ```python
-# Step until the first symbolic branch
+# 最初のシンボリック分岐までステップする
 >>> while len(simgr.active) == 1:
 ...    simgr.step()
 
@@ -39,21 +39,21 @@ When you don't really care about controlling analysis very carefully and you jus
 >>> simgr.active
 [<SimState @ 0x400692>, <SimState @ 0x400699>]
 
-# Step until everything terminates
+# すべてが終了するまでステップする
 >>> simgr.run()
 >>> simgr
 <SimulationManager with 3 deadended>
 ```
 
-We now have 3 deadended states!
-When a state fails to produce any successors during execution, for example, because it reached an `exit` syscall, it is removed from the active stash and placed in the `deadended` stash.
+3つの状態がdeadendedになりました！
+たとえば、ある状態が`exit`システムコールに到達して実行中に後継者を生成できなかった場合、その状態はactiveスタッシュから削除され、`deadended`スタッシュに配置されます。
 
-### Stash Management
+### スタッシュの管理
 
-Let's see how to work with other stashes.
+他のスタッシュと連携する方法を見てみましょう。
 
-To move states between stashes, use `.move()`,  which takes `from_stash`, `to_stash`, and `filter_func` (optional, default is to move everything).
-For example, let's move everything that has a certain string in its output:
+スタッシュ間で状態を移動するには`.move()`を使用します。この関数は`from_stash`、`to_stash`、そして`filter_func`（オプション引数で、デフォルトではすべてを移動させます）を受け取ります。
+たとえば、出力に特定の文字列が含まれるものをすべて移動させてみましょう:
 
 ```python
 >>> simgr.move(from_stash='deadended', to_stash='authenticated', filter_func=lambda s: b'Welcome' in s.posix.dumps(1))
@@ -61,12 +61,12 @@ For example, let's move everything that has a certain string in its output:
 <SimulationManager with 2 authenticated, 1 deadended>
 ```
 
-We were able to just create a new stash named "authenticated" just by asking for states to be moved to it.
-All the states in this stash have "Welcome" in their stdout, which is a fine metric for now.
+状態を移動させるだけで、「authenticated」という名前の新しいスタッシュを作成することができました。
+このスタッシュにあるすべての状態は標準出力に「Welcome」と表示されます。これは今のところ良い指標になっています。
 
-Each stash is just a list, and you can index into or iterate over the list to access each of the individual states, but there are some alternate methods to access the states too.
-If you prepend the name of a stash with `one_`, you will be given the first state in the stash.
-If you prepend the name of a stash with `mp_`, you will be given a [mulpyplexed](https://github.com/zardus/mulpyplexer) version of the stash.
+各スタッシュは単なるリストであり、インデックスで要素を指定したりイテレートしたりして個々の状態にアクセスできますが、状態にアクセスするための代替方法もいくつか用意されています。
+スタッシュの名前の前に`one_`を付けると、そのスタッシュの最初の状態が表示されます。
+スタッシュの名前の前に`mp_`を付けると、そのスタッシュの[mulpyplexed](https://github.com/zardus/mulpyplexer)バージョンが表示されます。
 
 ```python
 >>> for s in simgr.deadended + simgr.authenticated:
@@ -84,61 +84,63 @@ MP(['\x00\x00\x00\x00\x00\x00\x00\x00\x00SOSNEAKY\x00',
     '\x00\x00\x00\x00\x00\x00\x00\x00\x00S\x80\x80\x80\x80@\x80@\x00'])
 ```
 
-Of course, `step`, `run`, and any other method that operates on a single stash of paths can take a `stash` argument, specifying which stash to operate on.
+もちろん、`step`、`run`などのパスのスタッシュを操作するメソッドは`stash`引数を取ることができ、どのスタッシュで操作するかを指定できます。
 
-There are lots of fun tools that the simulation manager provides you for managing your stashes.
-We won't go into the rest of them for now, but you should check out the API documentation. TODO: link
+シミュレーションマネージャーには、スタッシュを管理するための便利なツールがたくさんあります。
+今のところ、それらの残りに触れることはしませんが、APIドキュメントを確認してみると良いでしょう。TODO: リンク
 
-## Stash types
+## スタッシュの種類
 
-You can use stashes for whatever you like, but there are a few stashes that will be used to categorize some special kinds of states.
+スタッシュは好きなように使えますが、いくつかの特別な種類の状態を分類するために使われるスタッシュがいくつかあります。
+これらは
 These are:
 
-| Stash | Description |
+| スタッシュ | 説明 |
 |-------|-------------|
-| active     | This stash contains the states that will be stepped by default, unless an alternate stash is specified. |
-| deadended     | A state goes to the deadended stash when it cannot continue the execution for some reason, including no more valid instructions, unsat state of all of its successors, or an invalid instruction pointer. |
-| pruned        | When using `LAZY_SOLVES`, states are not checked for satisfiability unless absolutely necessary. When a state is found to be unsat in the presence of `LAZY_SOLVES`, the state hierarchy is traversed to identify when, in its history, it initially became unsat. All states that are descendants of that point (which will also be unsat, since a state cannot become un-unsat) are pruned and put in this stash. |
-| unconstrained | If the `save_unconstrained` option is provided to the SimulationManager constructor, states that are determined to be unconstrained (i.e., with the instruction pointer controlled by user data or some other source of symbolic data) are placed here. |
-| unsat | If the `save_unsat` option is provided to the SimulationManager constructor, states that are determined to be unsatisfiable (i.e., they have constraints that are contradictory, like the input having to be both "AAAA" and "BBBB" at the same time) are placed here. |
+| active     | このスタッシュには、代替のスタッシュが指定されていない限り、デフォルトでステップされる状態が含まれています。 |
+| deadended     | 有効な命令がもうない、その後継のすべての状態が充足不能、命令ポインターが無効など、何らかの理由で実行を継続できないとき、状態はdeadendedスタッシュに移動します。 |
+| pruned        | `LAZY_SOLVES`を使用する場合、絶対に必要でないかぎり、状態が充足可能かどうかチェックしません。`LAZY_SOLVES`を使用しているときに状態が充足不能であることが判明すると、状態階層を走査して、その履歴の中で最初に充足不能になったものを特定します。その時点でのすべての子孫の状態（状態が充足不能から充足可能になることはないため、これも充足不能になります）が取り除かれてこのスタッシュに移動します。 |
+| unconstrained | SimulationManagerのコンストラクターで`save_unconstrained`オプションが与えられると、制約がないと判断された（すなわち、命令ポインターがユーザーデータ、または他のシンボリックデータソースによって制御されている）状態がここに移動します。 |
+| unsat | SimulationManagerのコンストラクターで`save_unsat`オプションが指定された場合、充足不能（矛盾した制約、たとえば入力が「AAAA」と「BBBB」の両方でなければならない）と判断された状態はここに移動します。 |
 
-There is another list of states that is not a stash: `errored`.
-If, during execution, an error is raised, then the state will be wrapped in an `ErrorRecord` object, which contains the state and the error it raised, and then the record will be inserted into `errored`.
-You can get at the state as it was at the beginning of the execution tick that caused the error with `record.state`, you can see the error that was raised with `record.error`, and you can launch a debug shell at the site of the error with `record.debug()`.
-This is an invaluable debugging tool!
+隠し場所ではない、もうひとつの状態のリストがあります。`errored`です。
+実行中にエラーが発生した場合、状態は`ErrorRecord`オブジェクトにラップされ、そのオブジェクトにはその状態と発生したエラーが記録され、そのレコードは`errored`に挿入されます。
+エラーを発生させた命令アドレスにおける状態を`record.state`で取得し、発生したエラーを`record.error`で確認し、`record.debug()`でエラーが発生した場所でデバッグシェルを起動できます。
+これは非常に貴重なデバッグツールです。
 
-### Simple Exploration
+### 簡単な探索
 
-An extremely common operation in symbolic execution is to find a state that reaches a certain address, while discarding all states that go through another address.
-Simulation manager has a shortcut for this pattern, the `.explore()` method.
+シンボリック実行で非常に一般的な操作は、あるアドレスに到達する状態を見つけ、他のアドレスを通過する状態をすべて破棄することです。
+シミュレーションマネージャーには、このパターンのショートカットである`.explore()`メソッドがあります。
 
-When launching `.explore()` with a `find` argument, execution will run until a state is found that matches the find condition, which can be the address of an instruction to stop at, a list of addresses to stop at, or a function which takes a state and returns whether it meets some criteria.
-When any of the states in the active stash match the `find` condition, they are placed in the `found` stash, and execution terminates.
-You can then explore the found state, or decide to discard it and continue with the other ones.
-You can also specify an `avoid` condition in the same format as `find`.
-When a state matches the avoid condition, it is put in the `avoided` stash, and execution continues.
-Finally, the `num_find` argument controls the number of states that should be found before returning, with a default of 1.
-Of course, if you run out of states in the active stash before finding this many solutions, execution will stop anyway.
+`.explore()`に`find`引数を渡して呼び出すと、その条件にマッチする状態が見つかるまで実行されます。
+この条件には、停止する命令のアドレス、停止するアドレスのリスト、あるいは、状態を受け取ってそれが特定の基準を満たすかどうかを返す関数が使えます。
+activeスタッシュの状態のいずれかが`find`条件にマッチすると、それらは`found`スタッシュに置かれ、実行が終了します。
+このとき、見つかった状態を探索することもできますし、それを破棄して他の状態を探索することもできます。
+また、`find`と同じフォーマットで`avoid`条件を指定することもできます。
+状態がavoid条件にマッチすると、その状態は`avoided`スタッシュに格納され、実行が継続されます。
+最後に、`num_find`引数は、リターンする前に見つけるべき状態の数を制御します。デフォルトは1です。
+もちろん、これだけの数の解を見つける前にactiveスタッシュの状態を使い果たした場合は、いずれにせよ実行は停止します。
 
-Let's look at a simple crackme [example](./examples.md#reverseme-modern-binary-exploitation---csci-4968):
+簡単なcrackmeの[例](./examples.md#reverseme-modern-binary-exploitation---csci-4968)を見てみましょう:
 
-First, we load the binary.
+まず、バイナリをロードします。
 ```python
 >>> proj = angr.Project('examples/CSCI-4968-MBE/challenges/crackme0x00a/crackme0x00a')
 ```
 
-Next, we create a SimulationManager.
+次に、SimulationManagerを作成します。
 ```python
 >>> simgr = proj.factory.simgr()
 ```
 
-Now, we symbolically execute until we find a state that matches our condition (i.e., the "win" condition).
+次に、条件に合う状態（つまり、「勝利」条件）が見つかるまで、シンボリックに実行します。
 ```python
 >>> simgr.explore(find=lambda s: b"Congrats" in s.posix.dumps(1))
 <SimulationManager with 1 active, 1 found>
 ```
 
-Now, we can get the flag out of that state!
+さて、その状態からフラグを出すことができます！
 ```python
 >>> s = simgr.found[0]
 >>> print(s.posix.dumps(1))
@@ -149,32 +151,32 @@ Enter password: Congrats!
 g00dJ0B!
 ```
 
-Pretty simple, isn't it?
+かなりシンプルでしょう？
 
-Other examples can be found by browsing the [examples](./examples.md).
+他の例は[例](./examples.md)を参照するとわかります。
 
-## Exploration Techniques
+## 探索手法
 
-angr ships with several pieces of canned functionality that let you customize the behavior of a simulation manager, called _exploration techniques_.
-The archetypical example of why you would want an exploration technique is to modify the pattern in which the state space of the program is explored - the default "step everything at once" strategy is effectively breadth-first search, but with an exploration technique you could implement, for example, depth-first search.
-However, the instrumentation power of these techniques is much more flexible than that - you can totally alter the behavior of angr's stepping process.
-Writing your own exploration techniques will be covered in a later chapter.
+angrには、シミュレーションマネージャーの動作をカスタマイズするために準備された機能がいくつかあり、 _探索手法 と呼ばれています。
+探索手法の典型的な例は、プログラムの状態空間を探索するパターンを変更することです。デフォルトの「すべてを一度にステップする」戦略は、実質的に幅優先探索ですが、探索手法を使えば、たとえば、深さ優先探索を実装できます。
+しかし、これらの手法はそれよりもはるかに柔軟で、angrのステップ処理の動作を完全に変更できます。
+独自の探索手法を書くことについては、後の章で説明します。
 
-To use an exploration technique, call `simgr.use_technique(tech)`, where tech is an instance of an ExplorationTechnique subclass.
-angr's built-in exploration techniques can be found under `angr.exploration_techniques`.
+探索テクニックを使うには、`simgr.use_technique(tech)`を呼びます。techはExplorationTechniqueのサブクラスのインスタンスです。
+angrのビルトインの探査手法は`angr.exploration_techniques`で確認できます。
 
-Here's a quick overview of some of the built-in ones:
+ここでは、いくつかのビルトインの探索手法を簡単に紹介します:
 
-- *DFS*: Depth first search, as mentioned earlier. Keeps only one state active at once, putting the rest in the `deferred` stash until it deadends or errors.
-- *Explorer*: This technique implements the `.explore()` functionality, allowing you to search for and avoid addresses.
-- *LengthLimiter*: Puts a cap on the maximum length of the path a state goes through.
-- *LoopSeer*: Uses a reasonable approximation of loop counting to discard states that appear to be going through a loop too many times, putting them in a `spinning` stash and pulling them out again if we run out of otherwise viable states.
-- *ManualMergepoint*: Marks an address in the program as a merge point, so states that reach that address will be briefly held, and any other states that reach that same point within a timeout will be merged together.
-- *MemoryWatcher*: Monitors how much memory is free/available on the system between simgr steps and stops exploration if it gets too low.
-- *Oppologist*: The "operation apologist" is an especially fun gadget - if this technique is enabled and angr encounters an unsupported instruction, for example a bizzare and foreign floating point SIMD op, it will concretize all the inputs to that instruction and emulate the single instruction using the unicorn engine, allowing execution to continue.
-- *Spiller*: When there are too many states active, this technique can dump some of them to disk in order to keep memory consumption low.
-- *Threading*: Adds thread-level parallelism to the stepping process. This doesn't help much because of Python's global interpreter locks, but if you have a program whose analysis spends a lot of time in angr's native-code dependencies (unicorn, z3, libvex) you can seem some gains.
-- *Tracer*: An exploration technique that causes execution to follow a dynamic trace recorded from some other source. The [dynamic tracer repository](https://github.com/angr/tracer) has some tools to generate those traces.
-- *Veritesting*: An implementation of a [CMU paper](https://users.ece.cmu.edu/~dbrumley/pdf/Avgerinos%20et%20al._2014_Enhancing%20Symbolic%20Execution%20with%20Veritesting.pdf) on automatically identifying useful merge points. This is so useful, you can enable it automatically with `veritesting=True` in the SimulationManager constructor! Note that it frequenly doesn't play nice with other techniques due to the invasive way it implements static symbolic execution.
+- *DFS*: 先ほど説明した深さ優先探索です。1度に1つの状態だけをアクティブにして、残りは行き詰まるかエラーが起きるまで`deferred`スタッシュに置いておきます。
+- *Explorer*: このテクニックは`.explore()`機能を実装しており、特定アドレスの探索と回避を可能にします。
+- *LengthLimiter*: 状態が通過するパス数に上限を設定します。
+- *LoopSeer*: ループカウントの合理的な近似を使用して、ループを何度も通過しているように見える状態を破棄します。破棄した状態は`spinning`スタッシュに移動し、他に実行可能な状態がなくなったときに再び取り出されます。
+- *ManualMergepoint*: プログラム内のアドレスをマージポイントとしてマークし、そのアドレスに到達した状態を一時的に保持します。一定時間内に同じポイントに到達した他の状態は1つにマージされます。
+- *MemoryWatcher*: simgrの1ステップの間に、システム上でどれくらいのメモリが空いているか/利用可能かを監視し、少なくなりすぎた場合は探索を停止します。
+- *Oppologist*: とくに便利なのが「operation apologist」と呼ばれる仕組みです。この手法が有効な場合、angrがサポートされていない命令、たとえば奇妙な浮動小数点SIMD演算に遭遇すると、その命令へのすべての入力を具体化し、Unicorn Engineを使って単一の命令をエミュレートし、実行を継続できるようになります。
+- *Spiller*: アクティブな状態が多すぎる場合、この手法は、メモリ消費を低く抑えるために、それらの一部をディスクにダンプできます。
+- *Threading*: ステップ処理にスレッドレベルの並列性を追加します。Pythonのグローバルインタープリタロックのため、これはあまり役に立ちませんが、もし解析がangrのネイティブコード依存（unicorn, z3, libvex）で多くの時間を費やすプログラムを持っているなら、多少の効果を得ることができるようです。
+- *Tracer*: 他のソースから取得した動的トレースにしたがって実行させる探索手法です。[動的トレーサーのリポジトリ](https://github.com/angr/tracer)には、これらのトレースを生成するためのツールがいくつかあります。
+- *Veritesting*: [CMUの論文](https://users.ece.cmu.edu/~dbrumley/pdf/Avgerinos%20et%20al._2014_Enhancing%20Symbolic%20Execution%20with%20Veritesting.pdf)の実装で、有用なマージポイントを自動的に識別するものです。これはとても便利なため、SimulationManagerのコンストラクターで`veritesting=True`とすることで自動的に有効化できます！静的シンボリック実行を実装しているため、他の手法との相性が悪いことに注意してください。
 
-Look at the API documentation for the [simulation manager](http://angr.io/api-doc/angr.html#module-angr.manager) and [exploration techniques](http://angr.io/api-doc/angr.html#angr.exploration_techniques.ExplorationTechnique) for more information.
+詳しくは[シミュレーションマネージャー](http://angr.io/api-doc/angr.html#module-angr.manager)と[探索手法](http://angr.io/api-doc/angr.html#angr.exploration_techniques.ExplorationTechnique)のAPIドキュメントを見てください。

@@ -10,7 +10,7 @@
   * [バイナリのロード](docs/loading.md)
   * [ソルバーエンジン](docs/solver.md)
   * [プログラムの状態](docs/states.md)
-  * [Simulation Managers](docs/pathgroups.md)
+  * [シミュレーションマネージャー](docs/pathgroups.md)
   * [Execution Engines](docs/simulation.md)
   * [Analyses](docs/analyses.md)
   * [Remarks](docs/be_creative.md)
