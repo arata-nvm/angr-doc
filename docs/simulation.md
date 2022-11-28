@@ -1,142 +1,142 @@
-# Simulation  and Instrumentation
+# シミュレーションと計装
 
-When you ask for a step of execution to happen in angr, something has to actually perform the step.
-angr uses a series of engines (subclasses of the `SimEngine` class) to emulate the effects that of a given section of code has on an input state.
-The execution core of angr simply tries all the available engines in sequence, taking the first one that is able to handle the step.
-The following is the default list of engines, in order:
+angrで実行のステップを要求するとき、何かが実際にそのステップを実行しなければなりません。
+angrは一連のエンジン（`SimEngine`クラスのサブクラス）を使って、与えられたコードのセクションが入力状態に与える影響をエミュレートします。
+angrの実行コアは、利用可能なすべてのエンジンを順番に試し、そのステップを処理できる最初のものを選びます。
+以下は、デフォルトのエンジンのリストです:
 
-- The failure engine kicks in when the previous step took us to some uncontinuable state
-- The syscall engine kicks in when the previous step ended in a syscall
-- The hook engine kicks in when the current address is hooked
-- The unicorn engine kicks in when the `UNICORN` state option is enabled and there is no symbolic data in the state
-- The VEX engine kicks in as the final fallback.
+- failureエンジンは、前のステップで継続不可能な状態になったときに呼び出されます。
+- syscallエンジンは、前のステップがsyscallで終了したときに呼び出されます。
+- hookエンジンは、現在のアドレスがフックされたときに呼び出されます。
+- unicornエンジンは、`UNICORN`オプションが有効で、状態にシンボリックデータがない場合に呼び出されます。
+- VEXエンジンは、最終的なフォールバックとして呼び出されます。
 
 ## SimSuccessors
 
-The code that actually tries all the engines in turn is `project.factory.successors(state, **kwargs)`, which passes its arguments onto each of the engines.
-This function is at the heart of `state.step()` and `simulation_manager.step()`.
-It returns a SimSuccessors object, which we discussed briefly before.
-The purpose of SimSuccessors is to perform a simple categorization of the successor states, stored in various list attributes.
-They are:
+実際にすべてのエンジンを順番に試すコードは`project.factory.successors(state, **kwargs)`で、その引数を各エンジンに渡します。
+この関数は`state.step()`と`simulation_manager.step()`の中核をなしています。
+また、この関数は以前簡単に説明したSimSuccessorsオブジェクトを返します。
+SimSuccessorsの目的は、さまざまなリスト属性に格納されている後継状態を簡単に分類することです。
+その内容は以下の通りです:
 
-| Attribute | Guard Condition | Instruction Pointer | Description |
+| 属性 | ガード条件 | 命令ポインター | 説明 |
 |-----------|-----------------|---------------------|-------------|
-| `successors` | True (can be symbolic, but constrained to True) | Can be symbolic (but 256 solutions or less; see `unconstrained_successors`). | A normal, satisfiable successor state to the state processed by the engine. The instruction pointer of this state may be symbolic (i.e., a computed jump based on user input), so the state might actually represent *several* potential continuations of execution going forward. |
-| `unsat_successors` | False (can be symbolic, but constrained to False). | Can be symbolic. | Unsatisfiable successors. These are successors whose guard conditions can only be false (i.e., jumps that cannot be taken, or the default branch of jumps that *must* be taken). |
-| `flat_successors` | True (can be symbolic, but constrained to True). | Concrete value. | As noted above, states in the `successors` list can have symbolic instruction pointers. This is rather confusing, as elsewhere in the code (i.e., in `SimEngineVEX.process`, when it's time to step that state forward), we make assumptions that a single program state only represents the execution of a single spot in the code. To alleviate this, when we encounter states in `successors` with symbolic instruction pointers, we compute all possible concrete solutions (up to an arbitrary threshold of 256) for them, and make a copy of the state for each such solution. We call this process "flattening". These `flat_successors` are states, each of which has a different, concrete instruction pointer. For example, if the instruction pointer of a state in `successors` was `X+5`, where `X` had constraints of `X > 0x800000` and `X <= 0x800010`, we would flatten it into 16 different `flat_successors` states, one with an instruction pointer of `0x800006`, one with `0x800007`, and so on until `0x800015`. |
-| `unconstrained_successors` | True (can be symbolic, but constrained to True). | Symbolic (with more than 256 solutions). | During the flattening procedure described above, if it turns out that there are more than 256 possible solutions for the instruction pointer, we assume that the instruction pointer has been overwritten with unconstrained data (i.e., a stack overflow with user data). *This assumption is not sound in general*. Such states are placed in `unconstrained_successors` and not in `successors`. |
-| `all_successors` | Anything | Can be symbolic. | This is `successors + unsat_successors + unconstrained_successors`. |
+| `successors` | True（シンボリックでもよいが、Trueに制約されるもの）。 | シンボリックでもよい（ただし解が256個未満のものに限る、 `unconstrained_successors`を参照）。 | エンジンによって処理された状態の、通常の充足可能な後継状態です。この状態の命令ポインターはシンボリックであってもよいため（すなわち、ユーザー入力に基づいて計算されるジャンプ）、実際には、今後実行される可能性がある *複数の* 状態を表すかもしれません。 |
+| `unsat_successors` | False (シンボリックでもよいが、Falseに制約されるもの)。 | シンボリックでもよい。 | 充足不能な後継者、つまりガード条件がfalseにしかならない後継者です（すなわち、条件が満たされないジャンプや、*必ず* 実行されるジャンプのデフォルト分岐）。 |
+| `flat_successors` | True（シンボリックでもよいが、Trueに制約されるもの）。 | 具体的な値。 | 前述したように、`successors`リストに含まれる状態はシンボリックな命令ポインターを持つことができます。これは、コードの他の部分と同じように（つまり`SimEngineVEX.process`でその状態を前に進めるとき）、1つのプログラム状態がコード内の1つの場所の実行のみを表すと仮定しているため、かなりわかりにくいです。これを緩和するために、シンボリックな命令ポインターを持つ`successors`内の状態に遭遇したとき、それらに対して可能なすべての具体的な解（256個まで）を計算し、解ごとに状態のコピを作成します。このプロセスを「平坦化」と呼びます。これらの`flat_successors`は、それぞれに異なる具体的な命令ポインターを持つ状態です。たとえば、`successors`内の状態の命令ポインターが`X+5`で、`X`には`X > 0x800000`かつ`X <= 0x800010`という制約があった場合、これを16個の異なる`flat_successors`に平坦化し、命令ポインターが`0x800006`の状態、`0x800007`の状態、といったように、`0x800015`まで平坦化します。 |
+| `unconstrained_successors` | True（シンボリックでもよいが、Trueに制約されるもの）。 | シンボリック（解が256個以上のもの)。 | 先に説明した平坦化の手順において、命令ポインターに対して可能な解が256個以上あると判明した場合、命令ポインターは制約のないデータ（すなわち、ユーザーデータによるスタックオーバーフロー）で上書きされたと仮定します。 *この仮定は一般に健全ではありません* 。このような状態は`unconstrained_successors`に置かれ、`successors`には置かれません。 |
+| `all_successors` | 何でもよい | シンボリックでもよい。 | 之は`successors + unsat_successors + unconstrained_successors`です。 |
 
-## Breakpoints
+## ブレークポイント
 
-TODO: rewrite this to fix the narrative
+TODO: シナリオを修正するために書き直す
 
-Like any decent execution engine, angr supports breakpoints. This is pretty cool! A point is set as follows:
+普通の実行エンジンと同じように、angrはブレークポイントをサポートしています。これはかなりすごいことです！ポイントは以下のように設定されます:
 
 ```python
 >>> import angr
 >>> b = angr.Project('examples/fauxware/fauxware')
 
-# get our state
+# 状態を取得します
 >>> s = b.factory.entry_state()
 
-# add a breakpoint. This breakpoint will drop into ipdb right before a memory write happens.
+# ブレークポイントを追加します。このブレークポイントは、メモリ書き込みが行われる直前にipdbを実行します。
 >>> s.inspect.b('mem_write')
 
-# on the other hand, we can have a breakpoint trigger right *after* a memory write happens. 
-# we can also have a callback function run instead of opening ipdb.
+# 一方、メモリ書き込みが行われた*直後に*ブレークポイントのトリガーを設定することも可能です。
+# また、ipdbを開く代わりにコールバック関数を実行させることもできます。
 >>> def debug_func(state):
 ...     print("State %s is about to do a memory write!")
 
 >>> s.inspect.b('mem_write', when=angr.BP_AFTER, action=debug_func)
 
-# or, you can have it drop you in an embedded IPython!
+# あるいは、組み込みのIPythonを実行することも可能です！
 >>> s.inspect.b('mem_write', when=angr.BP_AFTER, action=angr.BP_IPYTHON)
 ```
 
-There are many other places to break than a memory write. Here is the list. You can break at BP_BEFORE or BP_AFTER for each of these events.
+メモリ書き込み以外にも、多くの場所にブレークポイントを設置できます。以下はそのリストです。それぞれのイベントに対してBP_BEFOREまたはBP_AFTERを指定できます。
 
-| Event type        | Event meaning |
+| イベントタイプ | イベントの意味 |
 |-------------------|------------------------------------------|
-| mem_read          | Memory is being read. |
-| mem_write         | Memory is being written. |
-| address_concretization | A symbolic memory access is being resolved. |
-| reg_read          | A register is being read. |
-| reg_write         | A register is being written. |
-| tmp_read          | A temp is being read. |
-| tmp_write         | A temp is being written. |
-| expr              | An expression is being created (i.e., a result of an arithmetic operation or a constant in the IR). |
-| statement         | An IR statement is being translated. |
-| instruction       | A new (native) instruction is being translated. |
-| irsb              | A new basic block is being translated. |
-| constraints       | New constraints are being added to the state. |
-| exit              | A successor is being generated from execution. |
-| fork              | A symbolic execution state has forked into multiple states. |
-| symbolic_variable | A new symbolic variable is being created. |
-| call              | A call instruction is hit. |
-| return            | A ret instruction is hit. |
-| simprocedure      | A simprocedure (or syscall) is executed. |
-| dirty             | A dirty IR callback is executed. |
-| syscall           | A syscall is executed (called in addition to the simprocedure event). |
-| engine_process    | A SimEngine is about to process some code. |
+| mem_read          | メモリが読み込まれています。 |
+| mem_write         | メモリが書き込まれています。 |
+| address_concretization | シンボリックメモリアドレスが解決されています。 |
+| reg_read          | レジスタが読み込まれています。 |
+| reg_write         | レジスタが書き込まれています。 |
+| tmp_read          | 一時変数が読み込まれています。 |
+| tmp_write         | 一時変数が書き込まれています。 |
+| expr              | 式が作成されています（すなわち、算術演算の結果やIRの定数）。 |
+| statement         | IRステートメントが変換されています。 |
+| instruction       | 新しい（ネイティブの）命令が翻訳されています。 |
+| irsb              | 新しい基本ブロックが翻訳されています。 |
+| constraints       | 新しい制約が状態に追加されています。 |
+| exit              | 実行により後継者が生成されています。 |
+| fork              | シンボリック実行状態が複数の状態にフォークされています。 |
+| symbolic_variable | 新しいシンボリック変数が作成されています。 |
+| call              | call命令が実行されています。 |
+| return            | ret命令が実行されています。 |
+| simprocedure      | simprocedure（またはsyscall）が実行されています。 |
+| dirty             | dirty IRのコールバックが実行されています。 |
+| syscall           | syscallが実行されています（simprocedureイベントに加えて呼び出されます）。 |
+| engine_process    | SimEngineがコードを処理しようとしています。 |
 
-These events expose different attributes:
+これらのイベントは異なる属性を公開します:
 
-| Event type             | Attribute name                         | Attribute availability | Attribute meaning                        |
+| イベントタイプ | 属性の名前 | 属性が使えるとき | 属性の意味 |
 |------------------------|----------------------------------------|------------------------|------------------------------------------|
-| mem_read               | mem_read_address                       | BP_BEFORE or BP_AFTER  | The address at which memory is being read. |
-| mem_read               | mem_read_expr                          | BP_AFTER               | The expression at that address. |
-| mem_read               | mem_read_length                        | BP_BEFORE or BP_AFTER  | The length of the memory read. |
-| mem_read               | mem_read_condition                     | BP_BEFORE or BP_AFTER  | The condition of the memory read. |
-| mem_write              | mem_write_address                      | BP_BEFORE or BP_AFTER  | The address at which memory is being written. |
-| mem_write              | mem_write_length                       | BP_BEFORE or BP_AFTER  | The length of the memory write. |
-| mem_write              | mem_write_expr                         | BP_BEFORE or BP_AFTER  | The expression that is being written. |
-| mem_write              | mem_write_condition                    | BP_BEFORE or BP_AFTER  | The condition of the memory write. |
-| reg_read               | reg_read_offset                        | BP_BEFORE or BP_AFTER  | The offset of the register being read. |
-| reg_read               | reg_read_length                        | BP_BEFORE or BP_AFTER  | The length of the register read. |
-| reg_read               | reg_read_expr                          | BP_AFTER               | The expression in the register. |
-| reg_read               | reg_read_condition                     | BP_BEFORE or BP_AFTER  | The condition of the register read. |
-| reg_write              | reg_write_offset                       | BP_BEFORE or BP_AFTER  | The offset of the register being written. |
-| reg_write              | reg_write_length                       | BP_BEFORE or BP_AFTER  | The length of the register write. |
-| reg_write              | reg_write_expr                         | BP_BEFORE or BP_AFTER  | The expression that is being written. |
-| reg_write              | reg_write_condition                    | BP_BEFORE or BP_AFTER  | The condition of the register write. |
-| tmp_read               | tmp_read_num                           | BP_BEFORE or BP_AFTER  | The number of the temp being read. |
-| tmp_read               | tmp_read_expr                          | BP_AFTER               | The expression of the temp. |
-| tmp_write              | tmp_write_num                          | BP_BEFORE or BP_AFTER  | The number of the temp written. |
-| tmp_write              | tmp_write_expr                         | BP_AFTER               | The expression written to the temp. |
-| expr                   | expr                                   | BP_BEFORE or BP_AFTER  | The IR expression. |
-| expr                   | expr_result                            | BP_AFTER               | The value (e.g. AST) which the expression was evaluated to. |
-| statement              | statement                              | BP_BEFORE or BP_AFTER  | The index of the IR statement (in the IR basic block). |
-| instruction            | instruction                            | BP_BEFORE or BP_AFTER  | The address of the native instruction. |
-| irsb                   | address                                | BP_BEFORE or BP_AFTER  | The address of the basic block. |
-| constraints            | added_constraints                      | BP_BEFORE or BP_AFTER  | The list of constraint expressions being added. |
-| call                   | function_address                       | BP_BEFORE or BP_AFTER  | The name of the function being called. |
-| exit                   | exit_target                            | BP_BEFORE or BP_AFTER  | The expression representing the target of a SimExit. |
-| exit                   | exit_guard                             | BP_BEFORE or BP_AFTER  | The expression representing the guard of a SimExit. |
-| exit                   | exit_jumpkind                          | BP_BEFORE or BP_AFTER  | The expression representing the kind of SimExit. |
-| symbolic_variable      | symbolic_name                          | BP_AFTER               | The name of the symbolic variable being created. The solver engine might modify this name (by appending a unique ID and length). Check the symbolic_expr for the final symbolic expression. |
-| symbolic_variable      | symbolic_size                          | BP_AFTER               | The size of the symbolic variable being created. |
-| symbolic_variable      | symbolic_expr                          | BP_AFTER               | The expression representing the new symbolic variable. |
-| address_concretization | address_concretization_strategy        | BP_BEFORE or BP_AFTER | The SimConcretizationStrategy being used to resolve the address. This can be modified by the breakpoint handler to change the strategy that will be applied. If your breakpoint handler sets this to None, this strategy will be skipped. |
-| address_concretization | address_concretization_action          | BP_BEFORE or BP_AFTER | The SimAction object being used to record the memory action. |
-| address_concretization | address_concretization_memory          | BP_BEFORE or BP_AFTER | The SimMemory object on which the action was taken. |
-| address_concretization | address_concretization_expr            | BP_BEFORE or BP_AFTER | The AST representing the memory index being resolved. The breakpoint handler can modify this to affect the address being resolved. |
-| address_concretization | address_concretization_add_constraints | BP_BEFORE or BP_AFTER | Whether or not constraints should/will be added for this read. |
-| address_concretization | address_concretization_result          | BP_AFTER | The list of resolved memory addresses (integers). The breakpoint handler can overwrite these to effect a different resolution result. |
-| syscall                | syscall_name                           | BP_BEFORE or BP_AFTER  | The name of the system call. |
-| simprocedure           | simprocedure_name                      | BP_BEFORE or BP_AFTER  | The name of the simprocedure. |
-| simprocedure           | simprocedure_addr                      | BP_BEFORE or BP_AFTER  | The address of the simprocedure. |
-| simprocedure           | simprocedure_result                    | BP_AFTER               | The return value of the simprocedure. You can also _override_ it in BP_BEFORE, which will cause the actual simprocedure to be skipped and for your return value to be used instead. |
-| simprocedure           | simprocedure                           | BP_BEFORE or BP_AFTER  | The actual SimProcedure object. |
-| dirty                  | dirty_name                             | BP_BEFORE or BP_AFTER  | The name of the dirty call. |
-| dirty                  | dirty_handler                          | BP_BEFORE              | The function that will be run to handle the dirty call. You can override this. |
-| dirty                  | dirty_args                             | BP_BEFORE or BP_AFTER  | The address of the dirty. |
-| dirty                  | dirty_result                           | BP_AFTER               | The return value of the dirty call. You can also _override_ it in BP_BEFORE, which will cause the actual dirty call to be skipped and for your return value to be used instead. |
-| engine_process         | sim_engine                             | BP_BEFORE or BP_AFTER  | The SimEngine that is processing. |
-| engine_process         | successors                             | BP_BEFORE or BP_AFTER  | The SimSuccessors object defining the result of the engine. |
+| mem_read               | mem_read_address                       | BP_BEFORE or BP_AFTER  | 読み込まれているメモリアドレス。 |
+| mem_read               | mem_read_expr                          | BP_AFTER               | そのアドレスにある式。 |
+| mem_read               | mem_read_length                        | BP_BEFORE or BP_AFTER  | 読み込まれているメモリの長さ。 |
+| mem_read               | mem_read_condition                     | BP_BEFORE or BP_AFTER  | メモリが読み込まれる条件。 |
+| mem_write              | mem_write_address                      | BP_BEFORE or BP_AFTER  | 書き込まれているメモリアドレス。 |
+| mem_write              | mem_write_length                       | BP_BEFORE or BP_AFTER  | 書き込まれているメモリの長さ。 |
+| mem_write              | mem_write_expr                         | BP_BEFORE or BP_AFTER  | 書き込まれている式。 |
+| mem_write              | mem_write_condition                    | BP_BEFORE or BP_AFTER  | メモリが書き込まれる条件。 |
+| reg_read               | reg_read_offset                        | BP_BEFORE or BP_AFTER  | 読み込まれているレジスタのオフセット。 |
+| reg_read               | reg_read_length                        | BP_BEFORE or BP_AFTER  | 読み込まれているレジスタの長さ。 |
+| reg_read               | reg_read_expr                          | BP_AFTER               | レジスタ内の式。 |
+| reg_read               | reg_read_condition                     | BP_BEFORE or BP_AFTER  | レジスタが読み込まれる条件。 |
+| reg_write              | reg_write_offset                       | BP_BEFORE or BP_AFTER  | 書き込まれているレジスタのオフセット。 |
+| reg_write              | reg_write_length                       | BP_BEFORE or BP_AFTER  | 書き込まれているレジスタの長さ。 |
+| reg_write              | reg_write_expr                         | BP_BEFORE or BP_AFTER  | 書き込まれている式。 |
+| reg_write              | reg_write_condition                    | BP_BEFORE or BP_AFTER  | レジスタが書き込まれる条件。 |
+| tmp_read               | tmp_read_num                           | BP_BEFORE or BP_AFTER  | 読み込まれている一時変数の番号。 |
+| tmp_read               | tmp_read_expr                          | BP_AFTER               | 読み込まれている一時変数の式。 |
+| tmp_write              | tmp_write_num                          | BP_BEFORE or BP_AFTER  | 書き込まれている一時変数の番号。 |
+| tmp_write              | tmp_write_expr                         | BP_AFTER               | 書き込まれている式。 |
+| expr                   | expr                                   | BP_BEFORE or BP_AFTER  | IR式。 |
+| expr                   | expr_result                            | BP_AFTER               | 式を評価した値（たとえば、AST）。 |
+| statement              | statement                              | BP_BEFORE or BP_AFTER  | （IR基本ブロック内の）IRステートメントのインデックス。 |
+| instruction            | instruction                            | BP_BEFORE or BP_AFTER  | ネイティブ命令のアドレス。 |
+| irsb                   | address                                | BP_BEFORE or BP_AFTER  | 基本ブロックのアドレス。 |
+| constraints            | added_constraints                      | BP_BEFORE or BP_AFTER  | 追加される制約のリスト |
+| call                   | function_address                       | BP_BEFORE or BP_AFTER  | 呼び出される関数の名前。 |
+| exit                   | exit_target                            | BP_BEFORE or BP_AFTER  | SimExitのターゲットを表す式。 |
+| exit                   | exit_guard                             | BP_BEFORE or BP_AFTER  | SimExitのガードを表す式。 |
+| exit                   | exit_jumpkind                          | BP_BEFORE or BP_AFTER  | SimExitの種類を表す式。 |
+| symbolic_variable      | symbolic_name                          | BP_AFTER               | 作成されるシンボリック変数の名前。ソルバーエンジンはこの名前を変更することがあります（一意のIDと長さを追加します）。最終的なシンボリック式はsymbolic_exprを確認してください。 |
+| symbolic_variable      | symbolic_size                          | BP_AFTER               | 作成されるシンボリック変数のサイズ。 |
+| symbolic_variable      | symbolic_expr                          | BP_AFTER               | 新しいシンボリック変数を表す式。 |
+| address_concretization | address_concretization_strategy        | BP_BEFORE or BP_AFTER  | アドレスに使用されるSimConcretizationStrategy。ブレークポイントハンドラーで、適用される戦略を変更できます。ブレークポイントハンドラーがこの属性をNoneに設定するとこの戦略はスキップされます。 |
+| address_concretization | address_concretization_action          | BP_BEFORE or BP_AFTER  | メモリ操作を記録するために使用されるSimMemoryオブジェクト。 |
+| address_concretization | address_concretization_memory          | BP_BEFORE or BP_AFTER  | アクションが実行されたSimMemoryオブジェクト。 |
+| address_concretization | address_concretization_expr            | BP_BEFORE or BP_AFTER  | 解決されるメモリインデックスを表すAST。ブレークポイントハンドラーはこの属性を変更してアドレスの解決に影響を与えることができます。 |
+| address_concretization | address_concretization_add_constraints | BP_BEFORE or BP_AFTER  | この読み取りに対して制約を追加すべきかどうか。 |
+| address_concretization | address_concretization_result          | BP_AFTER               | 解決されたメモリアドレス（整数）のリスト。ブレークポイントハンドラーはこの属性を上書きして、異なる解決結果を設定できます。 |
+| syscall                | syscall_name                           | BP_BEFORE or BP_AFTER  | システムコールの名前。 |
+| simprocedure           | simprocedure_name                      | BP_BEFORE or BP_AFTER  | simprocedureの名前。 |
+| simprocedure           | simprocedure_addr                      | BP_BEFORE or BP_AFTER  | simprocedureのアドレス。 |
+| simprocedure           | simprocedure_result                    | BP_AFTER               | simprocedureの戻り値。BP_BEFOREで _上書き_ することも可能で、その場合は実際のsimproceduregがスキップされて、代わりにブレークポイントハンドラーの戻り値が使用されます。 |
+| simprocedure           | simprocedure                           | BP_BEFORE or BP_AFTER  | 実際のSimProcedureオブジェクト。 |
+| dirty                  | dirty_name                             | BP_BEFORE or BP_AFTER  | dirty callの名前。 |
+| dirty                  | dirty_handler                          | BP_BEFORE              | dirty callを処理するために実行される関数。この属性を上書きすることが可能です。 |
+| dirty                  | dirty_args                             | BP_BEFORE or BP_AFTER  | dirtyのアドレス。 |
+| dirty                  | dirty_result                           | BP_AFTER               | dirty callの戻り値。BP_BEFOREで _上書き_ することも可能で、その場合は実際のdirty callがスキップされて、代わりにブレークポイントハンドラーの戻り値が使用されます。|
+| engine_process         | sim_engine                             | BP_BEFORE or BP_AFTER  | 処理しているSimEngineです。 |
+| engine_process         | successors                             | BP_BEFORE or BP_AFTER  | エンジンの結果を定義しているSimSuccessorsオブジェクトです。 |
 
-These attributes can be accessed as members of `state.inspect` during the appropriate breakpoint callback to access the appropriate values.
-You can even modify these value to modify further uses of the values!
+適切なブレークポイントハンドラー内で`state.inspect`を参照することで、そのメンバーとしてこれらの属性にアクセスできます。
+これらの値を変更して、さらにその値を使用するように変更できます！
 
 ```python
 >>> def track_reads(state):
@@ -145,39 +145,34 @@ You can even modify these value to modify further uses of the values!
 >>> s.inspect.b('mem_read', when=angr.BP_AFTER, action=track_reads)
 ```
 
-Additionally, each of these properties can be used as a keyword argument to `inspect.b` to make the breakpoint conditional:
+さらに、これらの属性はそれぞれ`inspect.b`のキーワード引数として使用することで、条件付きのブレークポイントを作成することができます:
 
 ```python
-# This will break before a memory write if 0x1000 is a possible value of its target expression
+# アドレス0x1000に対して書き込みが発生した際にブレークします
 >>> s.inspect.b('mem_write', mem_write_address=0x1000)
 
-# This will break before a memory write if 0x1000 is the *only* value of its target expression
+# 書き込み先のアドレスがシンボリック値で、その解が0x1000のみだった場合にブレークします
 >>> s.inspect.b('mem_write', mem_write_address=0x1000, mem_write_address_unique=True)
 
-# This will break after instruction 0x8000, but only 0x1000 is a possible value of the last expression that was read from memory
+# アドレス0x8000以降のメモリ読み込み命令で、読み込んだ値が0x1000だった場合にブレークします
 >>> s.inspect.b('instruction', when=angr.BP_AFTER, instruction=0x8000, mem_read_expr=0x1000)
 ```
 
-Cool stuff! In fact, we can even specify a function as a condition:
+かっこいい！実は、条件として関数を指定することもできます:
 ```python
-# this is a complex condition that could do anything! In this case, it makes sure that RAX is 0x41414141 and
-# that the basic block starting at 0x8004 was executed sometime in this path's history
+# これはなんでもできる複雑な条件です！この場合、RAXが0x41414141であることを確認します。
+# また、0x8004で始まる基本ブロックが、パスの履歴の中に含まれていることも確認します。
 >>> def cond(state):
 ...     return state.eval(state.regs.rax, cast_to=str) == 'AAAA' and 0x8004 in state.inspect.backtrace
 
 >>> s.inspect.b('mem_write', condition=cond)
 ```
 
-That is some cool stuff!
+これは素晴らしいものです！
+
+### `mem_read`ブレークポイントに関する注意点
 
 
+もし、メモリからデータをロードする際に設定した`mem_read`ブレークポイントをトリガーさせたくない場合は、`state.memory.load`にキーワード引数`disable_actions=True`と`inspect=False`をつけて呼び出してください。
 
-### Caution about `mem_read` breakpoint
-
-The `mem_read` breakpoint gets triggered anytime there are memory reads by either the executing program or the binary analysis. If you are using breakpoint on `mem_read` and also using `state.mem` to load data from memory addresses, then know that the breakpoint will be fired as you are technically reading memory.  
-
-So if you want to load data from memory and not trigger any `mem_read` breakpoint you have had set up, then use `state.memory.load` with the keyword arguments `disable_actions=True` and `inspect=False`. 
-
-This is also true for `state.find` and you can use the same keyword arguments to prevent `mem_read` breakpoints from firing.
-
-
+これは`state.find`にも当てはまり、同じキーワード引数を使って`mem_read`ブレークポイントがトリガーされないようにすることができます。
