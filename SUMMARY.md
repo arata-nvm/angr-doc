@@ -12,7 +12,7 @@
   * [プログラムの状態](docs/states.md)
   * [シミュレーションマネージャー](docs/pathgroups.md)
   * [実行エンジン](docs/simulation.md)
-  * [Analyses](docs/analyses.md)
+  * [解析モジュール](docs/analyses.md)
   * [Remarks](docs/be_creative.md)
 * Built-in Analyses
   * [CFG](docs/analyses/cfg.md)

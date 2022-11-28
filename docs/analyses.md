@@ -1,24 +1,24 @@
-# Analyses
+# 解析モジュール
 
-angr's goal is to make it easy to carry out useful analyses on binary programs.
-To this end, angr allows you to package analysis code in a common format that can be easily applied to any project.
-We will cover writing your own analyses [later](analysis_writing.md), but the idea is that all the analyses appear under `project.analyses` (for example, `project.analyses.CFGFast()`) and can be called as functions, returning analysis result instances.
+angrの目標は、バイナリプログラムに対して有用な解析を簡単に実行できるようにすることです。
+この目標のために、angrは解析モジュールをどのプロジェクトにも簡単に適用できるような共通のフォーマットでパッケージすることができます。
+独自の解析モジュールを書くことについては[後ほど](analysis_writing.md)説明しますが、すべての解析モジュールは`project.analyses`以下（たとえば、`project.analyses.CFGFast()`）に置かれており、関数として呼び出して解析結果のインスタンスを返すという仕組みになっています。
 
-## Built-in Analyses
+## ビルトインの解析モジュール
 
-| Name                                        | Description                                                                                                                               |
+| 名前                                        | 説明                                                                                                                               |
 | --------                                    | -------------                                                                                                                             |
-| CFGFast                                     | Constructs a fast *Control Flow Graph* of the program                                                                                     |
-| [CFGEmulated](analyses/cfg.md)     | Constructs an accurate *Control Flow Graph* of the program                                                                                |
-| VFG                                         | Performs VSA on every function of the program, creating a *Value Flow Graph* and detecting stack variables                                |
-| DDG                                         | Calculates a *Data Dependency Graph*, allowing one to determine what statements a given value depends on                                  |
-| [BackwardSlice](analyses/backward_slice.md) | Computes a *Backward Slice* of a program with respect to a certain target                                                                 |
-| [Identifier](analyses/identifier.md)        | Identifies common library functions in CGC binaries                                                                                       |
-| More!                                       | angr has quite a few analyses, most of which work! If you'd like to know how to use one, please submit an issue requesting documentation. |
+| CFGFast                                     | プログラムの高速な *制御フローグラフ* を構築します                                                                                     |
+| [CFGEmulated](analyses/cfg.md)              | プログラムの正確な *制御フローグラフ* を構築します                                                                                |
+| VFG                                         | プログラムのすべての関数でVSAを実行して *値フローグラフ* を作成し、スタック変数を検出します                                |
+| DDG                                         | *データ依存グラフ* を計算し、与えられた値がどのステートメントに依存しているかを判断できるようにします                                  |
+| [BackwardSlice](analyses/backward_slice.md) | あるターゲットに対して、プログラムの *バックワードスライス* を計算します                                                                 |
+| [Identifier](analyses/identifier.md)        | CGCバイナリの共通ライブラリ関数を特定します                                                                                       |
+| もっと!                                       | angrにはかなりの数の解析があり、そのほとんどが動作します！もし、使い方を知りたい場合はドキュメントをリクエストしてください。 |
 
-## Resilience
+## レジリエンス
 
-Analyses can be written to be resilient, and catch and log basically any error.
-These errors, depending on how they're caught, are logged to the `errors` or `named_errors` attribute of the analysis.
-However, you might want to run an analysis in "fail fast" mode, so that errors are not handled.
-To do this, the argument `fail_fast=True` can be passed into the analysis constructor.
+解析モジュールはレジリエンスがあるように書くことができ、基本的にどんなエラーでもキャッチしてログに残します。
+これらのエラーは、どのように補足されたかに応じて、解析モジュールの`errors`または`named_errors`属性に記録されます。
+しかし、エラーを処理しない「fail fast」モードで解析を実行したい場合もあるでしょう。
+これを行うには、解析モジュールのコンストラクターに`fail_fast=True`という引数を渡します。
