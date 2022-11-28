@@ -13,7 +13,7 @@
   * [シミュレーションマネージャー](docs/pathgroups.md)
   * [実行エンジン](docs/simulation.md)
   * [解析モジュール](docs/analyses.md)
-  * [Remarks](docs/be_creative.md)
+  * [備考](docs/be_creative.md)
 * Built-in Analyses
   * [CFG](docs/analyses/cfg.md)
   * [Backward Slicing](docs/analyses/backward_slice.md)

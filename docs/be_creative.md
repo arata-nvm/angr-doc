@@ -1,19 +1,19 @@
-# A final word of advice
+# 最後にひとこと
 
-Congratulations!
-If you've read this far through the book (editor's note: this comment only really applies when we've actually finished writing all the TODOs so far) then you've been introduced to all the fundamental components of angr necessary to get started with binary analysis.
+おめでとうございます！
+もしあなたがこの本をここまで読んできたなら（編集者注：このコメントが本当に当てはまるのは、これまでのTODOをすべて実際に書き終えたときだけです）、バイナリ解析を始めるのに必要なangrの基本的なコンポーネントはすべて紹介されたことになります。
 
-Ultimately, angr is just an emulator.
-It is a highly instrumentable and very unique emulator with lots of considerations for environment, true, but at its core, the work you do with angr is about extracting knowledge about how a bunch of bytecode behaves on a CPU.
-In designing angr, we've tried to provide you with the tools and abstractions on top of this emulator to make certain common tasks more useful, but there's no problem you can't solve just by working with a SimState and observing the affects of `.step()`.
+究極的には、angrは単なるエミュレータです。
+しかし、angrの核心は、バイトコードの集合がCPU上でどのように振る舞うかについての知識を抽出することです。
+angrの設計では、このエミュレータの上にツールや抽象化を提供することで、特定の一般的なタスクをより有用なものにしようとしました。しかし、SimStateを操作して`.step()`の影響を観察するだけで解決しない問題はありません。
 
-As you read further into this book, we'll describe more technical subjects and how to tune angr's behavior for complicated scenarios.
-This knowledge should inform your use of angr so you can take the quickest path to a solution to any given problem, but ultimately, you will want to solve problems by exercising creativity with the tools at your disposal.
-If you can take a problem and wrangle it into a form where it has defined and tractable inputs and outputs, you can absolutely use angr to achieve your goals, given that these goals involve analyzing binaries.
-None of the abstractions or instrumentations we provide are the end-all of how to use angr for a given task - angr is designed so it can be used in as integrated or as ad-hoc of a manner as you desire.
-If you see a path from problem to solution, take it.
+本書をさらに読み進めると、より技術的なテーマや複雑なシナリオに対応するためにangrの動作を制御する方法について説明することになります。
+このような知識は、与えられた問題に対して最短距離で解決できるようにangrの使い方を教えてくれるはずです。しかし、最終的には、自由に使えるツールを使って創造性を発揮することで問題を解決したいと思うはずです。
+もしあなたが問題を取り上げ、定義された扱いやすい入力と出力があるような形にまとめることができれば、バイナリを分析するという目的であれば、あなたの目的を達成するためにangrを絶対に使用することができるのです。
+私たちが提供する抽象化や計装は、与えられたタスクに対するangrの使い方の全てではありません。angrは、あなたが望むように統合的に、あるいはアドホックに使うことができるように設計されています。
+問題から解決への道筋が見えたら、それを目指してください。
 
-Of course, it's very difficult to become well-acquainted with such a huge piece of technology as angr.
-To this end you can absolutely lean on the community (through the [angr slack](https://angr.io/invite) is the best option) to discuss angr and solving problems with it.
+もちろん、angrのような巨大な技術に精通するのは大変なことです。
+そのため、angrや問題解決について議論するために、コミュニティ（[angr slack](https://angr.io/invite)が最適です）を活用することもできます。
 
-Good luck!
+幸運を祈ります！
