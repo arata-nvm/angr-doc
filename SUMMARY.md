@@ -14,7 +14,7 @@
   * [実行エンジン](docs/simulation.md)
   * [解析モジュール](docs/analyses.md)
   * [備考](docs/be_creative.md)
-* Built-in Analyses
+* ビルトインの解析モジュール
   * [CFG](docs/analyses/cfg.md)
   * [Backward Slicing](docs/analyses/backward_slice.md)
   * [Function Identifier](docs/analyses/identifier.md)

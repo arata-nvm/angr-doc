@@ -1,185 +1,181 @@
-# Control-flow Graph Recovery (CFG)
+# 制御フローグラフ（CFG）の復元
 
-angr includes analyses to recover the control-flow graph of a binary program.
-This also includes recovery of function boundaries, as well as reasoning about indirect jumps and other useful metadata.
+angrには、バイナリプログラムの制御フローグラフを復元するための解析モジュールが含まれています。
+また、関数境界の復元、間接ジャンプやその他の有用なメタデータの推論も含まれます。
 
-## General ideas
+## 一般的な考え方
 
-A basic analysis that one might carry out on a binary is a Control Flow Graph.
-A CFG is a graph with (conceptually) basic blocks as nodes and jumps/calls/rets/etc as edges.
+バイナリを解析する基本的な方法の一つは制御フローグラフを使うことです。
+CFGは、（概念的に）基本ブロックをノード、jump/call/ret/その他をエッジとするグラフである。
 
-In angr, there are two types of CFG that can be generated: a static CFG (CFGFast) and a dynamic CFG (CFGEmulated).
+angrでは、静的CFG（CFGFast）と動的CFG（CFGEmulated）の2種類のCFGを生成することができます。
 
-CFGFast uses static analysis to generate a CFG.
-It is significantly faster, but is theoretically bounded by the fact that some control-flow transitions can only be resolved at execution-time.
-This is the same sort of CFG analysis performed by other popular reverse-engineering tools, and its results are comparable with their output.
+CFGFast は静的解析を用いてCFGを生成します。
+これは大幅に高速化されますが、一部の制御フローの遷移は実行時にしか解決できないため、理論的には限界があります。
+これは、他の一般的なリバースエンジニアリングツールが行うCFG解析と同じ種類のもので、結果はそれらの出力と同等です。
 
-CFGEmulated uses symbolic execution to capture the CFG. While it is theoretically more accurate, it is dramatically slower.
-It is also typically less complete, due to issues with the accuracy of emulation (system calls, missing hardware features, and so on)
+CFGEmulatedは、CFGを取得するためにシンボリック実行を使用します。これは理論的にはより正確ですが、劇的に遅くなります。
+また、エミュレーションの精度に問題があるため、一般的に完全ではありません（システムコール、ハードウェア機能の欠落、など）。
 
-*If you are unsure which CFG to use, or are having problems with CFGEmulated, try CFGFast first.*
+*どのCFGを使用するべきかわからない場合、あるいはCFGEmulatedで問題がある場合はまずCFGFastを試してみてください。*
 
-
-A CFG can be constructed by doing:
+CFGは次のようにして作成できます:
 
 ```python
 >>> import angr
-# load your project
+# プロジェクトをロードする
 >>> p = angr.Project('/bin/true', load_options={'auto_load_libs': False})
 
-# Generate a static CFG
+# 静的CFGを作成する
 >>> cfg = p.analyses.CFGFast()
 
-# generate a dynamic CFG
+# 動的CFGを作成する
 >>> cfg = p.analyses.CFGEmulated(keep_state=True)
 ```
 
-## Using the CFG
+## CFGを使う
 
-The CFG, at its core, is a [NetworkX](https://networkx.github.io/) di-graph.
-This means that all of the normal NetworkX APIs are available:
+CFGのコアは[NetworkX](https://networkx.github.io/)の有向グラフです。
+つまり、通常のNetworkXのAPIはすべて利用できます。
 
 ```python
 >>> print("This is the graph:", cfg.graph)
 >>> print("It has %d nodes and %d edges" % (len(cfg.graph.nodes()), len(cfg.graph.edges())))
 ```
 
-The nodes of the CFG graph are instances of class `CFGNode`.
-Due to context sensitivity, a given basic block can have multiple nodes in the graph (for multiple contexts).
+CFGグラフのノードは、クラス`CFGNode`クラスのインスタンスです。
+コンテキストに依存するため、与えられた基本ブロックはグラフ内に複数のノードを持つことができます（複数のコンテキストに対応するため）。
 
 ```python
-# this grabs *any* node at a given location:
+# 与えられた場所にある*任意の*ノードを取得する
 >>> entry_node = cfg.get_any_node(p.entry)
 
-# on the other hand, this grabs all of the nodes
+# すべてのノードを取得する
 >>> print("There were %d contexts for the entry block" % len(cfg.get_all_nodes(p.entry)))
 
-# we can also look up predecessors and successors
+# 先行ノードと後継ノードを調べることもできます
 >>> print("Predecessors of the entry point:", entry_node.predecessors)
 >>> print("Successors of the entry point:", entry_node.successors)
 >>> print("Successors (and type of jump) of the entry point:", [ jumpkind + " to " + str(node.addr) for node,jumpkind in cfg.get_successors_and_jumpkind(entry_node) ])
 ```
 
-### Viewing the CFG
+### CFGを表示する
 
-Control-flow graph rendering is a hard problem.
-angr does not provide any built-in mechanism for rendering the output of a CFG analysis, and attempting to use a traditional graph rendering library, like matplotlib, will result in an unusable image.
+制御フローグラフのレンダリングは難しい問題です。
+angrはCFG解析の出力をレンダリングするビルトインの機構を持っておらず、matplotlibのような伝統的なグラフレンダリングライブラリを使用すると、使えない画像になります。
 
-One solution for viewing angr CFGs is found in [axt's angr-utils repository](https://github.com/axt/angr-utils).
+angrのCFGを見るための1つの解決策は、[axtのangr-utilsリポジトリ](https://github.com/axt/angr-utils)にあります。
 
-## Shared Libraries
+## 共有ライブラリ
 
-The CFG analysis does not distinguish between code from different binary objects.
-This means that by default, it will try to analyze control flow through loaded shared libraries.
-This is almost never intended behavior, since this will extend the analysis time to several days, probably.
-To load a binary without shared libraries, add the following keyword argument to the `Project` constructor:
+CFG解析は異なるバイナリオブジェクトのコードを区別しません。
+つまり、デフォルトではロードされた共有ライブラリを通る制御フローを解析しようとします。
+これは、解析時間を数日間に延ばしてしまうため、ほとんど意図した動作ではありません。
+共有ライブラリを含めずにバイナリをロードするには、`Project`コンストラクタに次のキーワード引数を追加してください:
 `load_options={'auto_load_libs': False}`
 
-## Function Manager
+## 関数マネージャー
 
-The CFG result produces an object called the *Function Manager*, accessible through `cfg.kb.functions`.
-The most common use case for this object is to access it like a dictionary. It maps addresses to `Function` objects, which can tell you properties about a function.
+CFGの結果は *Function Manager* というオブジェクトを生成し、`cfg.kb.functions`からアクセスできます。
+このオブジェクトの最も一般的な使用方法は、辞書のようにアクセスすることです。このオブジェクトはアドレスを`Function`オブジェクトにマップし、関数に関するプロパティを知ることができます。
 
 ```python
 >>> entry_func = cfg.kb.functions[p.entry]
 ```
 
-Functions have several important properties!
-- `entry_func.block_addrs` is a set of addresses at which basic blocks belonging to the function begin.
-- `entry_func.blocks` is the set of basic blocks belonging to the function, that you can explore and disassemble using capstone.
-- `entry_func.string_references()` returns a list of all the constant strings that were referred to at any point in the function.
-  They are formatted as `(addr, string)` tuples, where addr is the address in the binary's data section the string lives, and string is a Python string that contains the value of the string.
-- `entry_func.returning` is a boolean value signifying whether or not the function can return.
-  `False` indicates that all paths do not return.
-- `entry_func.callable` is an angr Callable object referring to this function.
-  You can call it like a Python function with Python arguments and get back an actual result (may be symbolic) as if you ran the function with those arguments!
-- `entry_func.transition_graph` is a NetworkX DiGraph describing control flow within the function itself. It resembles the control-flow graphs IDA displays on a per-function level.
-- `entry_func.name` is the name of the function.
-- `entry_func.has_unresolved_calls` and `entry.has_unresolved_jumps` have to do with detecting imprecision within the CFG.
-  Sometimes, the analysis cannot detect what the possible target of an indirect call or jump could be.
-  If this occurs within a function, that function will have the appropriate `has_unresolved_*` value set to `True`.
-- `entry_func.get_call_sites()` returns a list of all the addresses of basic blocks which end in calls out to other functions.
-- `entry_func.get_call_target(callsite_addr)` will, given `callsite_addr` from the list of call site addresses, return where that callsite will call out to.
-- `entry_func.get_call_return(callsite_addr)` will, given `callsite_addr` from the list of call site addresses, return where that callsite should return to.
+Functionはいくつかの重要なプロパティを持っています！
+- `entry_func.block_addrs`は、関数に属する基本ブロックの開始アドレスの集合です。
+- `entry_func.blocks`は、 関数に属する基本ブロックの集合で、capstoneを使って探索したり逆アセンブルしたりできます。
+- `entry_func.string_references()`は、関数内の任意の時点で参照されたすべての定数文字列のリストを返します。
+	それらは`(addr, string)`タプルとして表現されます。ここでaddrは文字列が存在するバイナリのデータセクションのアドレスで、stringは文字列の値を含むPythonの文字列です。
+- `entry_func.returning`は、関数がreturnできるかどうかを示すブーリアン値です。
+	`False`は、すべてのパスがreturnしないことを示します。
+- `entry_func.callable`は、この関数を参照するangr Callableオブジェクトです。
+	Pythonの関数のようにPythonの引数で呼び出すことができ、その引数で関数を実行したかのように実際の結果（シンボリックかもしれない）を返すことができます！
+- `entry_func.transition_graph`は、関数自体の制御フローを記述したNetworkX有向グラフです。これは、IDAが関数単位で表示する制御フローグラフに似ています。
+- `entry_func.name`は、関数の名前です。
+- `entry_func.has_unresolved_calls`と`entry.has_unresolved_jumps`はCFG内の不鮮明な部分を検出することに関係しています。
+	間接的な呼び出しやジャンプのターゲットとなりうるものを解析で検出できない場合があります。
+	もしこれが関数で発生した場合、その関数には適切な`has_resolved_*`値が`True`に設定されます。
+- `entry_func.get_call_sites()`は、他の関数への呼び出しで終わるすべての基本ブロックのアドレスをリストで返します。
+- `entry_func.get_call_target(callsite_addr)`は、コールサイトのアドレスを`callsite_addr`に与えると、そのコールサイトが呼び出される場所を返します。
+- `entry_func.get_call_return(callsite_addr)`は、コールサイトのアドレスを`callsite_addr`に与えると、そのコールサイトがどこに戻るべきかを返します。
 
-and many more !
+ほかにもいろいろあります！
 
+## CFGFastの詳細
 
-## CFGFast details
+CFGFastは静的な制御フローと関数を復元します。
+エントリポイント（またはユーザーが定義した任意の箇所）を起点に、おおよそ以下の手順で実行されます。
 
-CFGFast peforms a static control-flow and function recovery.
-Starting with the entry point (or any user-defined points) roughly the following procedure is performed:
+1) 基本ブロックがVEX IRにリフトされ、そのすべての出口（jump、call、return、次のブロックへの継続）が集められます。
+2) それぞれの出口について、出口が定数アドレスである場合、CFGに正しい型のエッジを追加し、解析対象ブロックの集合に目的ブロックを追加します。
+3) 出口で関数を呼び出す場合、行き先のブロックは新しい関数の開始点ともみなされます。呼び出す関数がリターンすることがわかっている場合、呼び出した後のブロックも解析します。
+4) 出口でリターンする場合、現在の関数はリターンすることが記録され、呼び出しグラフとCFGの適切なエッジが更新されます。
+4) すべての間接ジャンプ（目的地が一定でないブロックの出口）に対して、間接ジャンプの解決が行われます。
 
-1) The basic block is lifted to VEX IR, and all its exits (jumps, calls, returns, or continuation to the next block) are collected
-2) For each exit, if this exit is a constant address, we add an edge to the CFG of the correct type, and add the destination block to the set of blocks to be analyzed.
-3) In the event of a function call, the destination block is also considered the start of a new function. If the target function is known to return, the block after the call is also analyzed.
-4) In the event of a return, the current function is marked as returning, and the appropriate edges in the callgraph and CFG are updated.
-4) For all indirect jumps (block exits with a non-constant destination) Indirect Jump Resolution is performed.
+### 関数の開始アドレスを見つける
 
-### Finding function starts
+CFGFastは関数の開始アドレスと終了アドレスを決定する複数の方法をサポートしています。
 
-CFGFast supports multiple ways of deciding where a function starts and ends.
+まず、バイナリのmainエントリポイントが解析されます。
+シンボルを持つバイナリ（たとえば、ストリップされていないELFやPEバイナリ）では、すべての関数シンボルが開始点になりうるものとして扱われます。
+ストリップされたバイナリや、`blob`ローダーバックエンドを使用してロードされたバイナリなど、シンボルを持たないバイナリでは、CFGはバイナリのアーキテクチャで定義された関数プロローグをスキャンします。
+最後に、デフォルトでは、バイナリのコードセクション全体が、プロローグやシンボルに関係なく、実行可能なコンテンツとしてスキャンされます。
 
-First the binary's main entry point will be analyzed.
-For binaries with symbols (e.g., non-stripped ELF and PE binaries) all function symbols will be used as possible starting points.
-For binaries without symbols, such as stripped binaries, or binaries loaded using the `blob` loader backend, CFG will scan the binary for a set of function prologues defined for the binary's architecture.
-Finally, by default, the binary's entire code section will be scanned for executable contents, regardless of prologues or symbols.
+これらに加えて、CFGEmulatedと同様に、関数の開始点は、それらが与えられたアーキテクチャ上の「call」命令のターゲットである場合にも考慮されます。
 
-In addition to these, as with CFGEmulated, function starts will also be considered when they are the target of a "call" instruction on the given architecture.
+これらのオプションはすべて無効にできます。
 
-All of these options can be disabled
+### FakeRetと関数リターン
 
-### FakeRets and function returns
+関数呼び出しが検出された場合、まず、呼び出し側関数が最終的にリターンすると想定し、その後のブロックを呼び出し側関数の一部として扱います。
+この推測された制御フローエッジは「FakeRet」として知られています。
+呼び出し側関数を解析した結果、そうでないことが判明した場合、CFGを更新し、このFakeRetを削除し、それに応じて呼び出しグラフと関数ブロックを更新します。
+このように、CFGは *2回* 復元されます。この際、各関数のブロックの集合と、関数がリターンするかどうかを復元し、直接伝搬します。
 
-When a function call is observed, we first assume that the callee function eventually returns, and treat the block after it as part of the caller function.
-This inferred control-flow edge is known as a "FakeRet".
-If, in analyzing the callee, we find this not to be true, we update the CFG, removing this "FakeRet", and updating the callgraph and function blocks accordingly.
-As such, the CFG is recovered *twice*.  In doing this, the set of blocks in each function, and whether the function returns, can be recovered and propagated directly.
-
-### Indirect Jump Resolution
+### 間接ジャンプの解決
 
 *TODO*
 
+### オプション
 
-### Options
+これらはCFGFastを使用する際にもっとも便利なオプションです:
 
-These are the most useful options when working with CFGFast:
-
-| Option | Description |
+| オプション | 説明 |
 |--------|-------------|
-| force_complete_scan | (Default: True) Treat the entire binary as code for the purposes of function detection.  If you have a blob (e.g., mixed code and data) *you want to turn this off*. |
-| function_starts | A list of addresses, to use as entry points into the analysis. |
-| normalize | (Default: False) Normalize the resulting functions (e.g., each basic block belongs to at most one function, back-edges point to the start of basic blocks) |
-| resolve_indirect_jumps | (Default: True) Perform additional analysis to attempt to find targets for every indirect jump found during CFG creation. | 
-| more! | Examine the docstring on p.analyses.CFGFast for more up-to-date options |
+| force_complete_scan | （デフォルト: True）関数検出のためにバイナリ全体をコードとして扱います。blob（たとえば、コードとデータが混在している）が含まれている場合、 *これをオフにしたくなるでしょう* 。 |
+| function_starts | 解析のエントリポイントとして使用するアドレスのリスト。 |
+| normalize | （デフォルト: False）関数を正規化する（たとえば、それぞれの基本ブロックは最大1つの関数に属し、バックエッジは基本ブロックの開始点を指す）。 |
+| resolve_indirect_jumps | デフォルト: True）CFG作成中に発見したすべての間接ジャンプのターゲットを見つけるために追加の分析を実行する。 | 
+| もっと！ | 最新のオプションはp.analyses.CFGFastのdocstringを参照してください。 |
 
+## CFGEmulatedの詳細
 
-## CFGEmulated details
+### オプション
 
-### Options
-The most common options for CFGEmulated include:
+CFGEmulatedのもっとも一般的なオプションです:
 
-| Option | Description |
+| オプション | 詳細 |
 |--------|-------------|
-| context_sensitivity_level | This sets the context sensitivity level of the analysis. See the context sensitivity level section below for more information. This is 1 by default. |
-| starts | A list of addresses, to use as entry points into the analysis. |
-| avoid_runs | A list of addresses to ignore in the analysis. |
-| call_depth | Limit the depth of the analysis to some number calls. This is useful for checking which functions a specific function can directly jump to (by setting `call_depth` to 1).
-| initial_state | An initial state can be provided to the CFG, which it will use throughout its analysis. |
-| keep_state | To save memory, the state at each basic block is discarded by default. If `keep_state` is True, the state is saved in the CFGNode. |
-| enable_symbolic_back_traversal | Whether to enable an intensive technique for resolving indirect jumps |
-| enable_advanced_backward_slicing | Whether to enable another intensive technique for resolving direct jumps |
-| more! | Examine the docstring on p.analyses.CFGEmulated for more up-to-date options |
+| context_sensitivity_level | これは解析の文脈依存度を設定します。詳細については、以下の文脈依存度についてのセクションを参照してください。デフォルトでは1です。 |
+| starts | 解析のエントリポイントとして使用するアドレスのリストです。 |
+| avoid_runs | 解析の際に無視するアドレスのリストです。 |
+| call_depth | 解析の深さを呼び出し数で制限します。これは、特定の関数がどの関数に直接ジャンプできるかを確認するのに便利です（`call_depth`を1に設定する）。 |
+| initial_state | CFGに、解析で利用する初期状態を提供することができます。 |
+| keep_state | メモリを節約するために、それぞれの基本ブロックでの状態はデフォルトで破棄されます。`keep_state`がTrueの場合、CFGNodeに状態が保存されます。 |
+| enable_symbolic_back_traversal | 間接ジャンプを解決するための強力な手法を有効にするかどうか。 |
+| enable_advanced_backward_slicing | 直接ジャンプを解決するための別の強力な手法を有効にするかどうか。 |
+| more! | 最新のオプションはp.analyses.CFGEmulatedのdocstringを参照してください。 |
 
+### 文脈依存度
 
-### Context Sensitivity Level
+angrは、すべての基本ブロックを実行し、それがどこに進むかを見ることでCFGを構築します。
+これはいくつかの問題をもたらします: 基本ブロックは異なる *文脈* で異なる動作をします。
+たとえば、ブロックが関数からのリターンで終わる場合、その基本ブロックを含む関数がどこから呼び出されたかによってそのリターンのターゲットは異なるでしょう。
 
-angr constructs a CFG by executing every basic block and seeing where it goes.
-This introduces some challenges: a basic block can act differently in different *contexts*.
-For example, if a block ends in a function return, the target of that return will be different, depending on different callers of the function containing that basic block.
-
-The context sensitivity level is, conceptually, the number of such callers to keep on the callstack.
-To explain this concept, let's look at the following code:
+文脈依存度とは、概念的には、コールスタックに保持する呼び出し元の個数です。
+この概念を説明するために、次のコードを見てみましょう:
 
 ```c
 void error(char *error)
@@ -206,22 +202,22 @@ void main()
 }
 ```
 
-The above sample has four call chains: `main>alpha>puts`, `main>alpha>error>puts` and `main>beta>puts`, and `main>beta>error>puts`.
-While, in this case, angr can probably execute both call chains, this becomes unfeasible for larger binaries.
-Thus, angr executes the blocks with states limited by the context sensitivity level.
-That is, each function is re-analyzed for each unique context that it is called in.
+上記のサンプルには4つの連続した呼び出しの連鎖があります。`main>alpha>puts`、`main>alpha>error>puts`、`main>beta>puts`、`main>beta>error>puts`です。
+この場合、angrはおそらく両方の呼び出しの連鎖を実行することができますが、大きなバイナリでは実行不可能になります。
+そこで、angrは文脈依存度による制限を設定して、特定の状態でブロックを実行します。
+つまり，各関数は，それが呼ばれた固有の文脈ごとに再解析されます。
 
-For example, the `puts()` function above will be analyzed with the following contexts, given different context sensitivity levels:
+たとえば、上記の`puts()`関数は、異なる文脈依存度を与えられると、以下のコンテキストで解析されます:
 
-| Level | Meaning | Contexts |
+| 文脈依存度 | 意味 | 文脈 |
 |-------|---------|----------|
-| 0 | Callee-only | `puts` |
-| 1 | One caller, plus callee | `alpha>puts` `beta>puts` `error>puts` |
-| 2 | Two callers, plus callee | `alpha>error>puts` `main>alpha>puts` `beta>error>puts` `main>beta>puts` |
-| 3 | Three callers, plus callee | `main>alpha>error>puts` `main>alpha>puts` `main>beta>error>puts` `main>beta>puts` |
+| 0 | 呼び出し元のみ | `puts` |
+| 1 | 1つの呼び出し先と呼び出し元 | `alpha>puts` `beta>puts` `error>puts` |
+| 2 | 2つの呼び出し先と呼び出し元 | `alpha>error>puts` `main>alpha>puts` `beta>error>puts` `main>beta>puts` |
+| 3 | 3つの呼び出し先と呼び出し元 | `main>alpha>error>puts` `main>alpha>puts` `main>beta>error>puts` `main>beta>puts` |
 
-The upside of increasing the context sensitivity level is that more information can be gleaned from the CFG.
-For example, with context sensitivity of 1, the CFG will show that, when called from `alpha`, `puts` returns to `alpha`, when called from `error`, `puts` returns to `error`, and so forth.
-With context sensitivity of 0, the CFG simply shows that `puts` returns to `alpha`, `beta`, and `error`.
-This, specifically, is the context sensitivity level used in IDA.
-The downside of increasing the context sensitivity level is that it exponentially increases the analysis time.
+文脈依存度を上げると、CFGからより多くの情報が得られます。
+たとえば、文脈依存度が1の場合、CFGは`alpha`から呼び出されると`puts`は`alpha`に戻り、`error`から呼び出されると`puts`は`error`に戻る、というように示します。
+文脈依存度が0の場合、CFGは単に`puts`が`alpha`、`beta`、`error` に戻ることを示しています。
+これは具体的には、IDAで使用される文脈依存度です。
+文脈依存度を上げることの欠点は、解析時間が指数関数的に増加することです。
