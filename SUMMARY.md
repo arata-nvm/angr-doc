@@ -16,7 +16,7 @@
   * [備考](docs/be_creative.md)
 * ビルトインの解析モジュール
   * [CFG](docs/analyses/cfg.md)
-  * [Backward Slicing](docs/analyses/backward_slice.md)
+  * [バックワードスライシング](docs/analyses/backward_slice.md)
   * [Function Identifier](docs/analyses/identifier.md)
 * Advanced Topics
   * [Gotchas](docs/gotchas.md)

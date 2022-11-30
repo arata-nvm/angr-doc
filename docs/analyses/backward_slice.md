@@ -1,122 +1,119 @@
-# Backward Slicing
+# バックワードスライシング
 
-A *program slice* is a subset of statements that is obtained from the original program, usually by removing zero or more statements.
-Slicing is often helpful in debugging and program understanding.
-For instance, it’s usually easier to locate the source of a variable on a program slice.
+*プログラムスライス* とは、通常は元のプログラムから0個以上のステートメントを削除して得られるステートメントのサブセットです。
+スライシングは、デバッグやプログラムの理解に役立つことが多いです。
+たとえば、プログラムスライスでは、通常、変数のソースを簡単に見つけることができます。
 
-A backward slice is constructed from a *target* in the program, and all data flows in this slice end at the *target*.
+バックワードスライスは、プログラム内の *ターゲット* から構築され、このスライスのすべてのデータフローは *ターゲット* で終了します。
 
-angr has a built-in analysis, called `BackwardSlice`, to construct a backward program slice.
-This section will act as a how-to for angr’s `BackwardSlice` analysis, and followed by some in-depth discussion over the implementation choices and limitations.
+angrには`BackwardSlice`という、プログラムのバックワードスライスを構築するためのビルトインの解析モジュールがあります。
+このセクションでは、angrの`BackwardSlice`解析の方法と、実装の選択と制限に関する詳細な説明を行います。
 
-## First Step First
+## 最初のステップ
 
-To build a `BackwardSlice`, you will need the following information as input.
+`BackwardSlice` を作るには、以下の情報を入力として必要とします。
 
-- **Required** CFG. A control flow graph (CFG) of the program. This CFG must be an accurate CFG (CFGEmulated).
-- **Required** Target, which is the final destination that your backward slice terminates at.
-- **Optional** CDG. A control dependence graph (CDG) derived from the CFG.
-angr has a built-in analysis `CDG` for that purpose.
-- **Optional** DDG. A data dependence graph (DDG) built on top of the CFG.
-angr has a built-in analysis `DDG` for that purpose.
+- **必須** CFG。プログラムの制御フローグラフ（CFG）。このCFGは正確なCFG（CFGEmulated）でなければなりません。
+- **必須** ターゲット。バックワードスライスが終了する最終目的地です。
+- **任意** CDG。CFGから派生した制御依存グラフ（CDG）です。
+  angrには、そのためのビルトインの解析モジュール`CDG`があります。
+- **任意** DDG。CFGの上に構築されたデータ依存グラフ（DDG）です。
+  angrには、そのためのビルトインの解析モジュール`DDG`があります。
 
-A `BackwardSlice` can be constructed with the following code:
+`BackwardSlice`は以下のコードで構築できます:
 
 ```python
 >>> import angr
-# Load the project
+# プロジェクトをロードする
 >>> b = angr.Project("examples/fauxware/fauxware", load_options={"auto_load_libs": False})
 
-# Generate a CFG first. In order to generate data dependence graph afterwards, you’ll have to:
-# - keep all input states by specifying keep_state=True.
-# - store memory, register and temporary values accesses by adding the angr.options.refs option set.
-# Feel free to provide more parameters (for example, context_sensitivity_level) for CFG 
-# recovery based on your needs.
+# まずCFGを作成する。その後にデータ依存グラフを生成するために、以下のことが必要になります:
+# - keep_state=Trueを指定して、すべての入力状態を保持する。
+# - angr.options.refsオプションを追加することで、メモリ、レジスタ、一時変数へのアクセスを保存する。
+# 必要に応じて、CFG復元に必要なパラメータ（たとえば、context_sensitivity_level）を自由に設定できます。
 >>> cfg = b.analyses.CFGEmulated(keep_state=True, 
 ...                              state_add_options=angr.sim_options.refs, 
 ...                              context_sensitivity_level=2)
 
-# Generate the control dependence graph
+# 制御依存グラフを作成する
 >>> cdg = b.analyses.CDG(cfg)
 
-# Build the data dependence graph. It might take a while. Be patient!
+# データ依存グラフを作成する。時間がかかるかもしれないので、気長に待ちましょう！
 >>> ddg = b.analyses.DDG(cfg)
 
-# See where we wanna go... let’s go to the exit() call, which is modeled as a 
-# SimProcedure.
+# どこに行きたいか見てみましょう... exit()の呼び出しに行ってみましょう、これはSimProcedureです。
 >>> target_func = cfg.kb.functions.function(name="exit")
-# We need the CFGNode instance
+# CFGNodeのインスタンスが必要です
 >>> target_node = cfg.get_any_node(target_func.addr)
 
-# Let’s get a BackwardSlice out of them!
-# `targets` is a list of objects, where each one is either a CodeLocation 
-# object, or a tuple of CFGNode instance and a statement ID. Setting statement 
-# ID to -1 means the very beginning of that CFGNode. A SimProcedure does not 
-# have any statement, so you should always specify -1 for it.
+# BackwardSliceを生成してみましょう！
+# `targets`はオブジェクトのリストで、それぞれのオブジェクトはCodeLocationオブジェクト、またはCFGNodeのインスタンスとステートメントIDのタプルです。
+# ステートメントIDを-1に設定すると、そのCFGNodeの先頭を意味します。
+# SimProcedureはステートメントを持たないため、常に-1を指定する必要があります。
 >>> bs = b.analyses.BackwardSlice(cfg, cdg=cdg, ddg=ddg, targets=[ (target_node, -1) ])
 
-# Here is our awesome program slice!
+# これは素晴らしいプログラムスライスです！
 >>> print(bs)
 
 ```
 
-Sometimes it’s difficult to get a data dependence graph, or you may simply want build a program slice on top of a CFG.
-That’s basically why DDG is an optional parameter.
-You can build a `BackwardSlice` solely based on CFG by doing:
+データ依存グラフを得るのが困難な場合や、CFGNodeの上にプログラムスライスを構築したい場合もあります。
+DDGがオプションのパラメータなのは、基本的にそのためです。
+次のようにすることで、CFGだけをもとにした`BackwardSlice`を構築することができます:
 ```
 >>> bs = b.analyses.BackwardSlice(cfg, control_flow_slice=True)
 BackwardSlice (to [(<CFGNode exit (0x10000a0) [0]>, -1)])
 ```
 
-## Using The `BackwardSlice` Object
+## `BackwardSlice`オブジェクトの使用方法
 
-Before you go ahead and use `BackwardSlice` object, you should notice that the design of this class is fairly arbitrary right now, and it is still subject to change in the near future. We’ll try our best to keep this documentation up-to-date.
+`BackwardSlice`オブエクトを使用する前に、このクラスの設計は現在かなり不確かであり、近い将来変更される可能性があることに注意してください。このドキュメントを最新の状態に保つために、私達は最善を尽くします。
 
-### Members
+### メンバー
 
-After construction, a `BackwardSlice` has the following members which describe a program slice:
+構築後の`BackwardSlice`は、プログラムスライスを記述する以下のメンバーを持っています:
 
-| Member             | Mode     | Meaning                                                                                                                               |
+| メンバー             | モード     | 意味                                                                                                                               |
 | -------            | -------- | -------                                                                                                                               |
-| runs_in_slice      | CFG-only | A `networkx.DiGraph` instance showing addresses of blocks and SimProcedures in the program slice, as well as transitions between them |
-| cfg_nodes_in_slice | CFG-only | A `networkx.DiGraph` instance showing CFGNodes in the program slice and transitions in between                                        |
-| chosen_statements  | With DDG | A dict mapping basic block addresses to lists of statement IDs that are part of the program slice                                     |
-| chosen_exits       | With DDG | A dict mapping basic block addresses to a list of “exits”. Each exit in the list is a valid transition in the program slice           |
+| runs_in_slice      | CFGのみ | プログラムスライス内のブロックとSimProceduresのアドレス、およびそれらの間の遷移を示す`networkx.DiGraph`インスタンス。 |
+| cfg_nodes_in_slice | CFGのみ | プログラムスライス内のCFGNodeとその間の遷移を示す`networkx.DiGraph`インスタンス。 |
+| chosen_statements  | DDGあり | プログラムスライスの一部であるステートメントIDのリストに基本ブロックアドレスをマッピングした辞書。 |
+| chosen_exits       | DDGあり | 基本ブロックアドレスを「出口」のリストにマッピングした辞書。リスト内の各出口はプログラムスライス内の有効な遷移です。 |
 
-Each “exit” in `chosen_exit` is a tuple including a statement ID and a list of target addresses.
-For example, an “exit” might look like the following:
+`chosen_exit`の各「出口」は、ステートメントIDとターゲットアドレスのリストを含むタプルです。
+たとえば、「出口」は次のようになります:
 ```
 (35, [ 0x400020 ])
 ```
 
-If the “exit” is the default exit of a basic block, it’ll look like the following:
+「出口」が基本ブロックのデフォルトの出口である場合、次のようになります:
 ```
 (“default”, [ 0x400085 ])
 ```
 
-### Export an Annotated Control Flow Graph
+### アノテーションされた制御フローグラフのエクスポート
 
 TODO
 
-### User-friendly Representation
+### ユーザーフレンドリーな表現
 
-Take a look at `BackwardSlice.dbg_repr()`!
-
-TODO
-
-## Implementation Choices
+`BackwardSlice.dbg_repr()`を見てみましょう！
 
 TODO
 
-## Limitations
+## 実装の選択
 
 TODO
 
-### Completeness
+## 機能の限界
 
 TODO
 
-### Soundness
+### 完全性
+
+TODO
+
+### 安定性
 
 TODO
 
