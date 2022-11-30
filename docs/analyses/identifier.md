@@ -1,16 +1,15 @@
-# Identifier
+# 識別子
 
-
-The identifier uses test cases to identify common library functions in CGC binaries.
-It prefilters by finding some basic information about stack variables/arguments.
-The information of about stack variables can be generally useful in other projects.
+識別子は、テストケースを使用してCGCバイナリに含まれる一般的なライブラリ関数を識別します。
+スタック変数/引数に関するいくつかの基本的な情報を見つけることによって、プリフィルタリングを行います。
+スタック変数に関する情報は、他のプロジェクトでも一般的に有用です。
 
 ```python
 >>> import angr
 
-# get all the matches
+# すべてのマッチを取得する
 >>> p = angr.Project("../binaries/tests/i386/identifiable")
-# note analysis is executed via the Identifier call
+# 解析はIdentifierの呼び出しを通して実行されることに注意してください
 >>> idfer = p.analyses.Identifier()
 >>> for funcInfo in idfer.func_info:
 ... 	print(hex(funcInfo.addr), funcInfo.name)

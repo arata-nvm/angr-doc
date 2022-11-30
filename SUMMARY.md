@@ -17,7 +17,7 @@
 * ビルトインの解析モジュール
   * [CFG](docs/analyses/cfg.md)
   * [バックワードスライシング](docs/analyses/backward_slice.md)
-  * [Function Identifier](docs/analyses/identifier.md)
+  * [関数識別子](docs/analyses/identifier.md)
 * Advanced Topics
   * [Gotchas](docs/gotchas.md)
   * [The Whole Pipeline](docs/pipeline.md)
