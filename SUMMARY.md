@@ -18,8 +18,8 @@
   * [CFG](docs/analyses/cfg.md)
   * [バックワードスライシング](docs/analyses/backward_slice.md)
   * [関数識別子](docs/analyses/identifier.md)
-* Advanced Topics
-  * [Gotchas](docs/gotchas.md)
+* 高度なトピック
+  * [落とし穴](docs/gotchas.md)
   * [The Whole Pipeline](docs/pipeline.md)
   * [The Mixin Pattern](docs/mixins.md)
   * [Optimizing Symbolic Execution](docs/speed.md)

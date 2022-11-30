@@ -1,49 +1,49 @@
-# Gotchas when using angr
+# angrを使うときの落とし穴
 
-This section contains a list of gotchas that users/victims of angr frequently run into.
+このセクションでは、angrのユーザ/犠牲者が頻繁に遭遇する落とし穴をリストアップします。
 
-## SimProcedure inaccuracy
+## SimProcedureの不正確さ
 
-To make symbolic execution more tractable, angr replaces common library functions with summaries written in Python.
-We call these summaries SimProcedures.
-SimProcedures allow us to mitigate path explosion that would otherwise be introduced by, for example, `strlen` running on a symbolic string.
+シンボリック実行をより扱いやすくするために，angrは一般的なライブラリ関数をPythonで書かれたサマリーに置き換えます。
+このサマリーをSimProcedureと呼びます。
+SimProcedureは、例えば、`strlen`がシンボリック文字列で実行された場合に生じるパスの爆発を軽減することができます。
 
-Unfortunately, our SimProcedures are far from perfect.
-If angr is displaying unexpected behavior, it might be caused by a buggy/incomplete SimProcedure.
-There are several things that you can do:
+残念ながら、我々のSimProceduresは完璧とは言えません。
+angrが予期しない挙動を示した場合、それはバグや不完全なSimProcedureが原因である可能性があります。
+できることはいくつかあります。
 
-1. Disable the SimProcedure (you can exclude specific SimProcedures by passing options to the [angr.Project class](http://angr.io/api-doc/angr.html#module-angr.project)). This has the drawback of likely leading to a path explosion, unless you are very careful about constraining the input to the function in question. The path explosion can be partially mitigated with other angr capabilities (such as Veritesting).
-2. Replace the SimProcedure with something written directly to the situation in question. For example, our `scanf` implementation is not complete, but if you just need to support a single, known format string, you can write a hook to do exactly that.
-3. Fix the SimProcedure.
+1. SimProcedureを無効にする（[angr.Projectクラス](http://angr.io/api-doc/angr.html#module-angr.project)にオプションを渡すことにより、特定のSimProcedureを除外できます）。これは、問題となっている関数への入力を非常に注意深く制限しなければ、パス爆発につながる可能性が高いという欠点があります。パス爆発は、他のangrの機能（Veritestingなど）で部分的に緩和できます。
+2. SimProcedureを、問題の状況に合わせて直接書かれたものに置き換える。例えば、私たちの`scanf`の実装は完全ではありませんが、単一の既知のフォーマット文字列をサポートする必要があるだけなら、まさにそれを行うためのフックを書くことができます。
+3. SimProcedureを修正する。
 
-## Unsupported syscalls
+## サポートされていないシステムコール
 
-System calls are also implemented as SimProcedures.
-Unfortunately, there are system calls that we have not yet implemented in angr.
-There are several workarounds for an unsupported system call:
+システムコールもSimProcedureとして実装されています。
+残念ながら、angrではまだ実装していないシステムコールがあります。
+サポートされていないシステムコールについて、いくつかの回避策があります。
 
-1. Implement the system call. *TODO: document this process*
-2. Hook the callsite of the system call (using `project.hook`) to make the required modifications to the state in an ad-hoc way.
-3. Use the `state.posix.queued_syscall_returns` list to queue syscall return values. If a return value is queued, the system call will not be executed, and the value will be used instead. Furthermore, a function can be queued instead as the "return value", which will result in that function being applied to the state when the system call is triggered.
+1. システムコールを実装する。 *TODO: この作業を文書化する*
+2. （`project.hook`を使って）システムコールの呼び出し元をフックして、アドホックに状態に必要な修正を加える。
+3. `state.posix.queued_syscall_returns`リストを使って、システムコールの返り値をキューに入れま す。戻り値がキューに入れられると、システムコールは実行されず、代わりにその値が使用されます。さらに、関数を「戻り値」として代わりにキューに入れることもでき、その場合、システムコールが実行されたときに、その関数が状態に適用されます。
 
-## Symbolic memory model
+## シンボリックメモリーモデル
 
-The default memory model used by angr is inspired by [Mayhem](https://users.ece.cmu.edu/~dbrumley/pdf/Cha%20et%20al._2012_Unleashing%20Mayhem%20on%20Binary%20Code.pdf).
-This memory model supports limited symbolic reads and writes.
-If the memory index of a read is symbolic and the range of possible values of this index is too wide, the index is concretized to a single value.
-If the memory index of a write is symbolic at all, the index is concretized to a single value.
-This is configurable by changing the memory concretization strategies of `state.memory`.
+angrが使用するデフォルトのメモリモデルは[Mayhem](https://users.ece.cmu.edu/~dbrumley/pdf/Cha%20et%20al._2012_Unleashing%20Mayhem%20on%20Binary%20Code.pdf)に触発されたものです。
+このメモリモデルは、シンボリックな読み書きに一部対応しています。
+読み込みのメモリインデックスがシンボリックで、このインデックスの取り得る値の範囲が広すぎる場合、インデックスは1つの値に具体化されます。
+書き込みのメモリインデックスが完全にシンボリックである場合、そのインデックスは単一の値に具体化されます。
+これは、`state.memory`のメモリ具体化戦略を変更することで設定可能です。
 
-## Symbolic lengths
+## シンボリックな長さ
 
-SimProcedures, and especially system calls such as `read()` and `write()` might run into a situation where the *length* of a buffer is symbolic.
-In general, this is handled very poorly: in many cases, this length will end up being concretized outright or retroactively concretized in later steps of execution.
-Even in cases when it is not, the source or destination file might end up looking a bit "weird".
+SimProcedure、特に`read()`や`write()`などのシステムコールは、バッファの *length* がシンボリックである場合があります。
+多くの場合、この長さはそのまま具体化されるか、あるいは後の実行段階で遡及的に具体化されることになります。
+そうでない場合でも、ソースファイルやデスティネーションファイルの見た目が少し「変」になってしまうかもしれません。
 
-## Division by Zero
+## ゼロ除算
 
-Z3 has some issues with divisions by zero.
-For example:
+Z3はゼロ除算についていくつかの問題を抱えています。
+たとえば:
 
 ```
 >>> z = z3.Solver()
@@ -57,6 +57,6 @@ For example:
 0 4294967295
 ```
 
-This makes it very difficult to handle certain situations in Claripy.
-We post-process the VEX IR itself to explicitly check for zero-divisions and create IRSB side-exits corresponding to the exceptional case, but SimProcedures and custom analysis code may let occurrences of zero divisions split through, which will then cause weird issues in your analysis.
-Be safe --- when dividing, add a constraint against the denominator being zero.
+このため、Claripyで特定の状況を処理することは非常に困難です。
+VEX IR自体を後処理してゼロ除算を明示的にチェックし、例外的なケースに対応するIRSBの出口を作成しますが、SimProcedureや独自の解析コードではゼロ除算が発生すると分岐してしまい、解析で奇妙な問題が発生する可能性があります。
+安全のため、割り算をする場合は、分母がゼロであることに対する制約を追加してください。
