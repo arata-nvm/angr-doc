@@ -1,36 +1,36 @@
-Understanding the Execution Pipeline
+実行パイプラインを理解する
 ====================================
 
-If you've made it this far you know that at its core, angr is a highly flexible and intensely instrumentable emulator.
-In order to get the most mileage out of it, you'll want to know what happens at every step of the way when you say `simgr.run()`.
+ここまでくれば、angr が非常に柔軟で、非常に操作しやすいエミュレータであることがおわかりいただけると思います。
+このエミュレータを最大限に活用するために、`simgr.run()`を実行したときにどのような処理が行われるかを知っておくとよいでしょう。
 
-This is intended to be a more advanced document; you'll need to understand the function and intent of `SimulationManager`, `ExplorationTechnique`, `SimState`, and `SimEngine` in order to understand what we're talking about at times!
-You may want to have the angr source open to follow along with this.
+これはより高度なドキュメントになることを意図しています。私たちが話していることを理解するためには、`SimulationManager`、`ExplorationTechnique`、`SimState`、`SimEngine`の機能と意図を理解しなければならないことがあるでしょう！
+このドキュメントに合わせて、angrのソースを開いておくとよいでしょう。
 
-At every step along the way, each function will take `**kwargs` and pass them along to the next function in the hierarchy, so you can pass parameters to any point in the hierarchy and they will trickle down to everything below.
+各階層で、それぞれの関数は`**kwargs`を受け取り、それを次の関数に渡すため、階層のどのポイントでパラメータを渡しても、その下の関数に伝わります。
 
-## Simulation Managers
+## シミュレーションマネージャー
 
-So you've set your analysis in motion. Time to begin our journey.
+さて、これで解析の準備は整いました。さあ、旅立ちの時です。
 
 ### `run()`
 
-`SimulationManager.run()` takes several optional parameters, all of which control when to break out of the stepping loop.
-Notably, `n`, and `until`.
-`n` is used immediately - the run function loops, calling the `step()` function and passing on all its parameters until either `n` steps have happened or some other termination condition has occurred. If `n` is not provided, it defaults to 1, unless an `until` function is provided, in which case there will be no numerical cap on the loop.
-Additionally, the stash that is being used is taken into consideration, as if it becomes empty execution must terminate.
+`SimulationManager.run()`はいくつかのオプションの引数を取ります。これらはすべて、いつステップのループから抜け出すかをコントロールするものです。
+注目すべきは`n`と`until`です。
+`n`はすぐに使用されます。run関数はループし、`step()`関数を呼び出して、`n`ステップが発生するか、他の終了条件が満たされるまですべてのパラメータを受け渡します。`n`が指定されない場合は、`until`関数が指定されない限り、デフォルトで 1 が指定され、その場合はループに数値的な上限はありません。
+さらに、使用中のスタッシュも考慮され、それが空になると実行を終了します。
 
-So, in summary, when you call `run()`, `step()` will be called in a loop until any of the following:
+つまり、`run()`を呼び出すと、以下のいずれかが満たされるまでループ内で`step()`が呼び出されます。
 
-1. The `n` number of steps have elapsed
-2. The `until` function returns true
-3. The exploration techniques `complete()` hooks (combined via the `SimulationManager.completion_mode` parameter/attribute - it is by default the `any` builtin function but can be changed to `all` for example) indicate that the analysis is complete
-4. The stash being executed becomes empty
+1. `n`回のステップが経過した。
+2. `until`関数がtrueを返した。
+3. 探索手法の`complete()`フック（`SimulationManager.completion_mode`パラメーター/属性で指定する: デフォルトでは`any`ビルトイン関数ですが`all`などに変更可能）が解析完了を通知した。
+4. 実行中のスタッシュが空になった。
 
-#### An aside: `explore()`
+#### `explore()`についての余談
 
-`SimulationManager.explore()` is a very thin wrapper around `run()` which adds the `Explorer` exploration technique, since performing one-off explorations is a very common action.
-Its code in its entirety is below:
+`SimulationManager.explore()`は`run()`の非常に薄いラッパーで、`Explorer`探索手法を追加しています。
+そのコード全体は以下のとおりです。
 
 ```
 num_find += len(self._stashes[find_stash]) if find_stash in self._stashes else 0
@@ -44,106 +44,106 @@ finally:
 return self
 ```
 
-### Exploration technique hooking
+### 探索手法のフック
 
-From here down, every function in the simulation manager can be instrumented by an exploration technique.
-The exact mechanism through which this works is that when you call `SimulationManager.use_technique()`, angr monkeypatches the simulation manager to replace any function implemented in the exploration technique's body with a function which will first call the exploration technique's function, and then on the second call will call the original function.
-This is somewhat messy to implement and certainly not thread safe by any means, but does produce a clean and powerful interface for exploration techniques to instrument stepping behavior, either before or after the original function is called, even choosing whether or not to call the original function whatsoever.
-Additionally, it allows multiple exploration techniques to hook the same function, as the monkeypatched function simply becomes the "original" function for the next-applied hook.
+ここからは、シミュレーションマネージャーのすべての関数が探索手法によって制御されるようになります。
+具体的な仕組みとしては、`SimulationManager.use_technique()`を呼び出すと、angrがシミュレーションマネージャーをモンキーパッチし、探索手法の本体で実装されている関数を、最初に探索手法の関数を呼び出し2回目に元の関数を呼び出す関数に置き換えます。
+これは実装がやや面倒でスレッドセーフではありませんが、探索手法がステップ操作を制御するクリーンで強力なインターフェイスとなり、元の関数が呼ばれる前か後に、元の関数を呼ぶかどうかさえ選択できます。
+さらに、モンキーパッチされた関数は単に次に適用されるフックにとっての「オリジナル」関数になるので、複数の探索手法が同じ関数をフックすることができます。
 
 ### `step()`
 
-There is a lot of complicated logic in `step()` to handle degenerate cases - mostly implementing the population of the `deadended` stash, the `save_unsat` option, and calling the `filter()` exploration technique hooks.
-Beyond this, though, most of the logic is looping through the stash specified by the `stash` argument and calling `step_state()` on each state, then applying the dict result of `step_state()` to the stash list.
-Finally, if the `step_func` parameter is provided, it is called with the simulation manager as a parameter before the step ends.
+`step()`には、縮退したケースを処理するための複雑な処理がたくさんあります。そのほとんどは、`deadended`スタッシュの実装、`save_unsat`オプションの処理、そして`filter()`探索手法フックの呼び出しです。
+それらの処理が終わると、`stash`引数で指定されたスタッシュをループして、それぞれの状態に対して`step_state()`を呼び出し、`step_state()`の結果をスタッシュのリストに適用します。
+最後に、`step_func`引数が渡されていれば、ステップが終了する前にシミュレーションマネージャーをパラメータとして呼び出します。
 
 ### `step_state()`
 
-The default `step_state()`, which can be overridden or instrumented by exploration techniques, is also simple - it calls `successors()`, which returns a `SimSuccessors` object, and then translates it into a dict mapping stash names to new states which should be added to that stash.
-It also implements error handling - if `successors()` throws an error, it will be caught and an `ErrorRecord` will be inserted into `SimulationManager.errored`.
+デフォルトの`step_state()`はシンプルです。`successors()`を呼び出し、`SimSuccessors`オブジェクトを返します。
+また、エラー処理も実装しています。`successors()`がエラーを発生させると、それをキャッチして`ErrorRecord`を`SimulationManager.errored`に格納します。
 
 ### `successors()`
 
-We've almost made it out of SimulationManager.
-`successors()`, which can also be instrumented by exploration techniques, is supposed to take a state and step it forward, returning a `SimSuccessors` object categorizing its successors independently of any stash logic.
-If the `successor_func` parameter was provided, it is used and its return value is returned directly.
-If this parameter was not provided, we use the `project.factory.successors` method to tick the state forward and get our `SimSuccessors`.
+SimulationManagerからほぼ抜け出せました。
+`successors()`は、探索手法によって制御することもできます。状態を取得して前に進め、その後継者を分類した`SimSuccessors`オブジェクトを、スタッシュの処理とは関係なく返すことになっています。
+もし`successor_func`引数が指定されていれば、その戻り値が直接返されます。
+この引数が指定されていない場合は、`project.factory.successors`メソッドを使用して状態を進め、`SimSuccessors`を取得します。
 
-## The Engine
+## エンジン
 
-When we get to the actual successors generation, we need to figure out how to actually perform the execution.
-Hopefully, the angr documentation has been organized in a way such that by the time you reach this page, you know that a `SimEngine` is a device that knows how to take a state and produce its successors.
-There is only one "default engine" per project, but you can provide the `engine` parameter to specify which engine will be used to perform the step.
+後継者を生成する段階になったら、実際にどのように実行するかを考える必要があります。
+このページに辿り着くまでに、`SimEngine`は状態を受け取ってその後継を生成する方法を知っている装置であると理解できるように、angrのドキュメントが構成されていることを望みます。
+「デフォルトエンジン」は1つのプロジェクトに1つしかありませんが、`engine`パラメータを指定することでステップを実行する際にどのエンジンを使用するかを指定できます。
 
-Keep in mind that this parameter can be provided way at the top, to `.step()`, `.explore()`, `.run()` or anything else that starts execution, and they will be filtered down to this level.
-Any additional parameters will continue being passed down, until they reach the part of the engine they are intended for.
-The engine will discard any parameters it doesn't understand.
+このパラメータは、`.step()`、`.explore()`、`.run()`など実行を開始する関数に対して指定でき、このレベルまでフィルタリングされることを覚えておいてください。
+追加されたパラメータは、エンジン内の目的の場所に到達するまで下に渡され続けます。
+エンジンは理解できないパラメータはすべて破棄します。
 
-Generally, the main entry point of an engine is `SimEngine.process()`, which can return whatever result it likes, but for simulation managers, engines are required to use `SuccessorsMixin`, which provides a `process()` method, which creates a `SimSuccessors` object and then calls `process_successors()` so that other mixins can fill it out.
+一般的にエンジンのメインエントリーポイントは`SimEngine.process()`で、これは任意の結果を返すことができます。しかしシミュレーションマネージャーの場合、エンジンは`SuccessorsMixin`を使う必要があります。これは`process()`メソッドを提供し、`SimSuccessors`オブジェクトを作ってから `process_successors()`を呼び出し、他のmixinがそれを処理できるようにします。
 
-angr's default engine, the `UberEngine`, contains several mixins which provide the `process_successors()` method:
+angrのデフォルトエンジンである`UberEngine`は`process_successors()`メソッドを提供するいくつかのmixinを含んでいます:
 
-- `SimEngineFailure` - handles stepping states with degenerate jumpkinds
-- `SimEngineSyscall` - handles stepping states which have performed a syscall and need it executed
-- `HooksMixin` - handles stepping states which have reached a hooked address and need the hook executed
-- `SimEngineUnicorn` - executes machine code via the unicorn engine
-- `SootMixin` - executes java bytecode via the SOOT IR
-- `HeavyVEXMixin` - executes machine code via the VEX IR
+- `SimEngineFailure` - 特定のjumpkindに到達した状態を処理します。
+- `SimEngineSyscall` - システムコールの実行が必要な状態を処理します。
+- `HooksMixin` - フックされたアドレスに到達した際、フックの実行が必要な状態を処理します。
+- `SimEngineUnicorn` - Unicornエンジンを使って機械語を実行します。
+- `SootMixin` - SOOT IRを介してJavaバイトコードを実行します。
+- `HeavyVEXMixin` - VEX IRを介して機械語を実行します。
 
-Each of these mixins is implemented to fill out the `SimSuccessors` object if they can handle the current state, otherwise they call `super()` to pass the job on to the next class in the stack. 
+これらのmixinは、現在の状態を処理できる場合に`SimSuccessors`オブジェクトを埋めるように実装されており、そうでない場合は`super()`を呼び出してスタックの次のクラスに処理を渡します。
 
-## Engine mixins
+## エンジンのmixin
 
-`SimEngineFailure` handles error cases. 
-It is only used when the previous jumpkind is one of `Ijk_EmFail`, `Ijk_MapFail`, `Ijk_Sig*`, `Ijk_NoDecode` (but only if the address is not hooked), or `Ijk_Exit`.
-In the first four cases, its action is to raise an exception.
-In the last case, its action is to simply produce no successors.
+`SimEngineFailure`はエラーとなるケースを処理します。
+これは、直前のjumpkindが`Ijk_EmFail`、`Ijk_MapFail`、`Ijk_Sig*`、`Ijk_NoDecode`（ただしアドレスがフックされていない場合のみ）、`Ijk_Exit` のいずれかであるときのみ使用されます。
+最初の4つのケースでは、例外を発生させます。
+最後のケースでは、後継者を生成しません。
 
-`SimEngineSyscall` services syscalls.
-It is used when the previous jumpkind is anything of the form `Ijk_Sys*`.
-It works by making a call into `SimOS` to retrieve the SimProcedure that should be run to respond to this syscall, and then running it! Pretty simple.
+`SimEngineSyscall`はシステムコールを処理します。
+これは、直前のjumpkindが`Ijk_Sys*`という形式である場合に使用されます。
+`SimOS`を呼び出して、このシステムコールに応答するために実行すべきSimProcedureを取得し、それを実行することで機能します。とてもシンプルですね。
 
-`HooksMixin` provides the hooking functionality in angr.
-It is used when a state is at an address that is hooked, and the previous jumpkind is *not* `Ijk_NoHook`.
-It simply looks up the associated SimProcedure and runs it on the state!
-It also takes the parameter `procedure`, which will cause the given procedure to be run for the current step even if the address is not hooked.
+`HooksMixin`はangrのフック機能を提供します。
+これは、状態がフックされたアドレスにあり、前のjumpkindが`Ijk_NoHook` *でない* 場合に使用されます。
+これは単に関連するSimProcedureを検索し、その状態に対して実行します。
+また、引数`procedure`を受け取り、アドレスがフックされていない場合でも、指定されたをプロシージャーを現在のステップで実行します。
 
-`SimEngineUnicorn` performs concrete execution with the Unicorn Engine.
-It is used when the state option `o.UNICORN` is enabled, and a myriad of other conditions designed for maximum efficiency (described below) are met.
+`SimEngineUnicorn`は、Unicornエンジンを使用して具体的な実行を行います。
+これは、状態のオプション`o.UNICORN`が有効で、最大限の効率を得るために設計された他の無数の条件 (以下で説明) が満たされているときに使用されます。
 
-`SootMixin` performs execution over the SOOT IR. Not very important unless you are analyzing java bytecode, in which case it is very important.
+`SootMixin`はSOOT IR上で実行されます。Javaバイトコードを解析するのでなければ、あまり重要ではありませんが、その場合は非常に重要です。
 
-`SimEngineVEX` is the big fellow.
-It is used whenever any of the previous can't be used.
-It attempts to lift bytes from the current address into an IRSB, and then executes that IRSB symbolically.
-There are a huge number of parameters that can control this process, so I will merely link to the [API reference](http://angr.io/api-doc/angr.html#angr.engines.vex.engine.SimEngineVEX.process) describing them.
+`SimEngineVEX`は大物です。
+前のどれかが使えないときに使います。
+これは、現在のアドレスからIRSBにバイトを移動し、そのIRSBをシンボリックに実行しようとします。
+このプロセスを制御できるパラメータは膨大な数にのぼるので、それらを説明した[APIリファレンス](http://angr.io/api-doc/angr.html#angr.engines.vex.engine.SimEngineVEX.process)にリンクするだけにしておきます。
 
-The exact process by which SimEngineVEX digs into an IRSB is a little complicated, but essentially it runs all the block's statements in order.
-This code is worth reading if you want to see the true inner core of angr's symbolic execution.
+SimEngineVEXがIRSBを掘り下げる正確なプロセスは少し複雑ですが、基本的にはブロックのすべてのステートメントを順番に実行します。
+このコードは、angrのシンボリック実行の真の内核を見たいのであれば、読む価値があります。
 
-# When using Unicorn Engine
+# Unicornエンジンを使う場合
 
-If you add the `o.UNICORN` state option, at every step `SimEngineUnicorn` will be invoked, and try to see if it is allowed to use Unicorn to execute concretely.
+`o.UNICORN`状態オプションを追加すると、各ステップで`SimEngineUnicorn`が呼び出され、具体的な実行のためにUnicornを使用できるかどうかを確認します。
 
-What you REALLY want to do is to add the predefined set `o.unicorn` (lowercase) of options to your state:
+必要なのは、定義済みのオプションセット`o.unicorn`（小文字）を状態に追加することです。
 
 ```python
 unicorn = { UNICORN, UNICORN_SYM_REGS_SUPPORT, INITIALIZE_ZERO_REGISTERS, UNICORN_HANDLE_TRANSMIT_SYSCALL }
 ```
 
-These will enable some additional functionalities and defaults which will greatly enhance your experience.
-Additionally, there are a lot of options you can tune on the `state.unicorn` plugin.
+これらは、いくつかの追加機能とデフォルトを有効にし、あなたの体験を大きく向上させます。
+さらに、`state.unicorn`プラグインで調整できるオプションはたくさんあります。
 
-A good way to understand how unicorn works is by examining the logging output (`logging.getLogger('angr.engines.unicorn_engine').setLevel('DEBUG'); logging.getLogger('angr.state_plugins.unicorn_engine').setLevel('DEBUG')` from a sample run of unicorn.
+unicornがどのように動作するかを理解するには、unicornのサンプル実行からのログ出力（`logging.getLogger('angr.engines.unicorn_engine').setLevel('DEBUG'); logging.getLogger('angr.state_plugins.unicorn_engine').setLevel('DEBUG')`）を検証してみるとよいでしょう。
 
 ```
 INFO    | 2017-02-25 08:19:48,012 | angr.state_plugins.unicorn | started emulation at 0x4012f9 (1000000 steps)
 ```
 
-Here, angr diverts to unicorn engine, beginning with the basic block at 0x4012f9.
-The maximum step count is set to 1000000, so if execution stays in Unicorn for 1000000 blocks, it'll automatically pop out.
-This is to avoid hanging in an infinite loop.
-The block count is configurable via the `state.unicorn.max_steps` variable.
+ここで、angrはUnicornエンジンに分岐し、0x4012f9の基本ブロックから開始します。
+最大ステップ数は1000000に設定されているので、1000000個のブロックがUnicornで実行されると、自動的にangrに処理が戻ります。
+これは、無限ループに陥るのを避けるためです。
+ブロック数は変数`state.unicorn.max_steps`で設定可能です。
 
 ```
 INFO    | 2017-02-25 08:19:48,014 | angr.state_plugins.unicorn | mmap [0x401000, 0x401fff], 5 (symbolic)
@@ -154,13 +154,13 @@ INFO    | 2017-02-25 08:19:48,023 | angr.state_plugins.unicorn | mmap [0x400000,
 INFO    | 2017-02-25 08:19:48,025 | angr.state_plugins.unicorn | mmap [0x7000000, 0x7000fff], 5
 ```
 
-angr performs lazy mapping of data that is accessed by unicorn engine, as it is accessed. 0x401000 is the page of instructions that it is executing, 0x7fffffffffe0000 is the stack, and so on. Some of these pages are symbolic, meaning that they contain at least some data that, when accessed, will cause execution to abort out of Unicorn.
+angrは、Unicornエンジンがアクセスするデータに対して遅延マッピングを行います。たとえば、0x401000は実行中の命令のページ、0x7fffffffe0000はスタック、といった具合です。これらのページのいくつかはシンボリックであり、アクセスするとUnicornの実行を中断させるようなデータを少なくとも含んでいます。
 
 ```
 INFO    | 2017-02-25 08:19:48,037 | angr.state_plugins.unicorn | finished emulation at 0x7000080 after 3 steps: STOP_STOPPOINT
 ```
 
-Execution stays in Unicorn for 3 basic blocks (a computational waste, considering the required setup), after which it reaches a simprocedure location and jumps out to execute the simproc in angr.
+3つの基本ブロックがUnicornで実行され（必要な設定を考慮すると、計算の無駄）、その後simprocedureの場所に到達し、angrのsimprocを実行するために処理を戻します。
 
 ```
 INFO    | 2017-02-25 08:19:48,076 | angr.state_plugins.unicorn | started emulation at 0x40175d (1000000 steps)
@@ -169,19 +169,19 @@ INFO    | 2017-02-25 08:19:48,079 | angr.state_plugins.unicorn | mmap [0x7ffffff
 INFO    | 2017-02-25 08:19:48,081 | angr.state_plugins.unicorn | mmap [0x6010000, 0x601ffff], 3
 ```
 
-After the simprocedure, execution jumps back into Unicorn.
+simprocedureの後、実行はUnicornに戻ります。
 
 ```
 WARNING | 2017-02-25 08:19:48,082 | angr.state_plugins.unicorn | fetching empty page [0x0, 0xfff]
 INFO    | 2017-02-25 08:19:48,103 | angr.state_plugins.unicorn | finished emulation at 0x401777 after 1 steps: STOP_EXECNONE
 ```
 
-Execution bounces out of Unicorn almost right away because the binary accessed the zero-page.
+バイナリがゼロページにアクセスしたため、実行はほぼすぐにUnicornから戻されます。
 
 ```
 INFO    | 2017-02-25 08:19:48,120 | angr.engines.unicorn_engine | not enough runs since last unicorn (100)
 INFO    | 2017-02-25 08:19:48,125 | angr.engines.unicorn_engine | not enough runs since last unicorn (99)
 ```
 
-To avoid thrashing in and out of Unicorn (which is expensive), we have cooldowns (attributes of the `state.unicorn` plugin) that wait for certain conditions to hold (i.e., no symbolic memory accesses for X blocks) before jumping back into unicorn when a unicorn run is aborted due to anything but a simprocedure or syscall.
-Here, the condition it's waiting for is for 100 blocks to be executed before jumping back in.
+Unicornの実行がsimprocedureやシステムコール以外で中断された場合、Unicornに戻る前に特定の条件（Xブロックの間、シンボリックメモリーへのアクセスがないなど）が満たされるまで待機するクールダウン（`state.unicorn`プラグインの属性）が用意されています。
+ここでは、Unicornへ戻る前に100個のブロックが実行されることを待っています。
